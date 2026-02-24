@@ -32,6 +32,7 @@ cp demo_real/.env.example .env
 
 ```bash
 .venv/bin/python demo_real/01_prompt_template_openai.py
+.venv/bin/python demo_real/02_pydantic_output_parser_langchain.py
 .venv/bin/python demo_real/05_rag_chat_langchain_chroma.py
 .venv/bin/python demo_real/07_chain_tool_langchain.py
 .venv/bin/python demo_real/11_agent_tool_calling_langchain.py
@@ -51,6 +52,7 @@ make demo-real-agent
 ## Dækkede kursus-demoer
 
 - Demo 1: robust prompt template (`01_prompt_template_openai.py`)
+- Demo 2: struktureret output med Pydantic parser (`02_pydantic_output_parser_langchain.py`)
 - Demo 5: simpel RAG-chat (`05_rag_chat_langchain_chroma.py`)
 - Demo 7: chain + tool-kald (`07_chain_tool_langchain.py`)
 - Demo 7 (udvidet): komplet agent med tool-calling (`11_agent_tool_calling_langchain.py`)

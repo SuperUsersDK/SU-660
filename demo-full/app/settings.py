@@ -7,7 +7,13 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 
-load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+_DEMO_FULL_DIR = Path(__file__).resolve().parents[1]
+_REPO_ROOT_DIR = Path(__file__).resolve().parents[2]
+
+# Load local demo-full env first, then let repo-root .env override it.
+# This avoids an empty placeholder in demo-full/.env shadowing a real key in root .env.
+load_dotenv(_DEMO_FULL_DIR / ".env")
+load_dotenv(_REPO_ROOT_DIR / ".env", override=True)
 
 
 @dataclass(frozen=True)
@@ -20,4 +26,3 @@ class Settings:
 
 
 SETTINGS = Settings()
-

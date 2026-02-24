@@ -3,23 +3,39 @@ from __future__ import annotations
 import argparse
 import glob
 import hashlib
+import uuid
 from pathlib import Path
 
+from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import Qdrant
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from qdrant_client import QdrantClient
+from qdrant_client import QdrantClient, models as qdrant_models
 
-try:
-    from app.settings import SETTINGS
-except ModuleNotFoundError:
-    from settings import SETTINGS
+SETTINGS = None
+
+
+def _get_settings():
+    global SETTINGS
+    # Match demo_real behavior: let python-dotenv discover and load .env at runtime.
+    # This happens before importing app.settings, so Settings captures the loaded values.
+    load_dotenv()
+    if SETTINGS is not None:
+        return SETTINGS
+    try:
+        from app.settings import SETTINGS as loaded_settings
+    except ModuleNotFoundError:
+        from settings import SETTINGS as loaded_settings
+    SETTINGS = loaded_settings
+    return SETTINGS
 
 
 def stable_id(text: str, source: str, page: int, idx: int) -> str:
     raw = f"{source}|{page}|{idx}|{text}".encode("utf-8")
-    return hashlib.sha1(raw).hexdigest()
+    # Qdrant point IDs must be uint or UUID. Use deterministic UUIDv5 for idempotent re-runs.
+    digest = hashlib.sha1(raw).hexdigest()
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, digest))
 
 
 def load_pdfs(pdf_dir: str) -> list:
@@ -33,8 +49,25 @@ def load_pdfs(pdf_dir: str) -> list:
     return docs
 
 
+def ensure_collection(client: QdrantClient, collection_name: str, embeddings: OpenAIEmbeddings) -> None:
+    if client.collection_exists(collection_name):
+        return
+
+    # Probe embedding size once so we can create the collection explicitly.
+    dim = len(embeddings.embed_query("dimension probe"))
+    client.create_collection(
+        collection_name=collection_name,
+        vectors_config=qdrant_models.VectorParams(
+            size=dim,
+            distance=qdrant_models.Distance.COSINE,
+        ),
+    )
+
+
 def main(pdf_dir: str = "data/pdfs") -> None:
-    if not SETTINGS.openai_api_key:
+    settings = _get_settings()
+
+    if not settings.openai_api_key:
         raise RuntimeError("OPENAI_API_KEY mangler")
 
     docs = load_pdfs(pdf_dir)
@@ -61,23 +94,24 @@ def main(pdf_dir: str = "data/pdfs") -> None:
         ids.append(chunk_id)
 
     # Quick connectivity check (raises early if Qdrant is not reachable).
-    client = QdrantClient(url=SETTINGS.qdrant_url)
+    client = QdrantClient(url=settings.qdrant_url)
     client.get_collections()
 
-    embeddings = OpenAIEmbeddings(model=SETTINGS.embedding_model)
+    embeddings = OpenAIEmbeddings(model=settings.embedding_model)
 
-    # from_documents creates the collection if missing and supports ids for idempotent re-runs.
-    Qdrant.from_documents(
-        documents=chunks,
-        embedding=embeddings,
-        url=SETTINGS.qdrant_url,
-        collection_name=SETTINGS.collection_name,
-        ids=ids,
+    # Avoid Qdrant.from_documents() here because some langchain/qdrant-client version
+    # combinations break on `recreate_collection(init_from=...)`.
+    ensure_collection(client, settings.collection_name, embeddings)
+    vs = Qdrant(
+        client=client,
+        collection_name=settings.collection_name,
+        embeddings=embeddings,
     )
+    vs.add_documents(chunks, ids=ids)
 
     print(
         f"Ingested {len(chunks)} chunks from {len(docs)} pages "
-        f"into collection={SETTINGS.collection_name}"
+        f"into collection={settings.collection_name}"
     )
 
 
@@ -86,4 +120,3 @@ if __name__ == "__main__":
     parser.add_argument("--pdf-dir", default="data/pdfs", help="Directory containing PDF files")
     args = parser.parse_args()
     main(args.pdf_dir)
-

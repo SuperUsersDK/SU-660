@@ -52,6 +52,7 @@ demo-real:
 	@echo "Run one of these after setting OPENAI_API_KEY (.env supported):"
 	@echo "If this is a fresh venv, run: make install"
 	@echo "  $(PY) demo_real/01_prompt_template_openai.py"
+	@echo "  $(PY) demo_real/02_pydantic_output_parser_langchain.py"
 	@echo "  $(PY) demo_real/05_rag_chat_langchain_chroma.py"
 	@echo "  $(PY) demo_real/07_chain_tool_langchain.py"
 	@echo "  $(PY) demo_real/11_agent_tool_calling_langchain.py"
