@@ -1,0 +1,13 @@
+# Core SDKs for "real" demos (OpenAI + LangChain + Chroma)
+openai>=1.65.0
+langchain>=0.3.0
+langchain-openai>=0.2.0
+langchain-community>=0.3.0
+langchain-chroma>=0.2.0
+chromadb>=0.5.0
+
+# Utilities used in demos / notebooks
+python-dotenv>=1.0.1
+pydantic>=2.7.0
+rich>=13.7.0
+

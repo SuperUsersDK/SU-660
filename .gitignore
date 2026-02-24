@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.venv/
+
+demo/output/*.jsonl
+demo_real/output/*.jsonl
+demo_real/.chroma/
+.env
