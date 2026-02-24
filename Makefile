@@ -3,7 +3,7 @@ VENV ?= .venv
 PIP := $(VENV)/bin/pip
 PY := $(VENV)/bin/python
 
-.PHONY: help venv install check demo demo-all demo-real demo-real-check demo-real-rag demo-real-agent slides clean
+.PHONY: help venv install check demo demo-all demo-real demo-real-check demo-real-rag demo-real-agent demo-full demo-full-ingest demo-full-chat slides clean
 
 help:
 	@echo "Targets:"
@@ -16,6 +16,9 @@ help:
 	@echo "  make demo-real-check - verify LangChain/OpenAI deps are installed in $(VENV)"
 	@echo "  make demo-real-rag   - run LangChain+Chroma RAG demo (needs API key)"
 	@echo "  make demo-real-agent - run LangChain tool-calling agent demo (needs API key)"
+	@echo "  make demo-full       - show available demo_full commands"
+	@echo "  make demo-full-ingest - ingest PDFs into Qdrant using demo_full/app/ingest.py"
+	@echo "  make demo-full-chat  - start demo_full CLI chat"
 	@echo "  make slides          - print slides file path"
 	@echo "  make clean           - remove caches and generated outputs"
 
@@ -67,6 +70,19 @@ demo-real-rag: demo-real-check
 
 demo-real-agent: demo-real-check
 	$(PY) demo_real/11_agent_tool_calling_langchain.py
+
+demo-full:
+	@echo "demo_full commands (run from repo root):"
+	@echo "  cd demo_full && docker compose up -d qdrant"
+	@echo "  cd demo_full && .venv/bin/pip install -r ../requirements.txt"
+	@echo "  make demo-full-ingest"
+	@echo "  make demo-full-chat"
+
+demo-full-ingest:
+	cd demo_full && .venv/bin/python app/ingest.py
+
+demo-full-chat:
+	cd demo_full && .venv/bin/python app/chat_cli.py
 
 slides:
 	@echo "slides/DemoSlides.md"

@@ -1,14 +1,23 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import sys
 from typing import Any
+import warnings
+
+if sys.version_info >= (3, 14):
+    warnings.filterwarnings(
+        "ignore",
+        message="Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.",
+        category=UserWarning,
+    )
 
 from langchain.agents import create_agent
-from langchain_community.vectorstores import Qdrant
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 
 try:
@@ -19,13 +28,16 @@ except ModuleNotFoundError:
     from tools import calculator, doc_stats, search_in_context
 
 
-def build_vs() -> Qdrant:
-    client = QdrantClient(url=SETTINGS.qdrant_url)
+def build_vs() -> QdrantVectorStore:
+    client = QdrantClient(
+        url=SETTINGS.qdrant_url,
+        api_key=SETTINGS.qdrant_api_key or None,
+    )
     embeddings = OpenAIEmbeddings(model=SETTINGS.embedding_model)
-    return Qdrant(
+    return QdrantVectorStore(
         client=client,
         collection_name=SETTINGS.collection_name,
-        embeddings=embeddings,
+        embedding=embeddings,
     )
 
 
@@ -131,4 +143,3 @@ def agent_answer(question: str) -> str:
         return str(result)
     messages = result.get("messages", [])
     return _message_text(messages[-1]) if messages else str(result)
-

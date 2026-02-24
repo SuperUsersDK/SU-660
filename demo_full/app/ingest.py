@@ -3,12 +3,23 @@ from __future__ import annotations
 import argparse
 import glob
 import hashlib
+import sys
 import uuid
+import warnings
 from pathlib import Path
+
+# LangChain currently emits this warning under Python 3.14 due to upstream
+# pydantic.v1 compatibility shims. Suppress the noisy warning for the demo CLI.
+if sys.version_info >= (3, 14):
+    warnings.filterwarnings(
+        "ignore",
+        message="Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.",
+        category=UserWarning,
+    )
 
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.vectorstores import Qdrant
+from langchain_qdrant import QdrantVectorStore
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from qdrant_client import QdrantClient, models as qdrant_models
@@ -64,7 +75,31 @@ def ensure_collection(client: QdrantClient, collection_name: str, embeddings: Op
     )
 
 
-def main(pdf_dir: str = "data/pdfs") -> None:
+def existing_ids_in_collection(
+    client: QdrantClient, collection_name: str, ids: list[str], batch_size: int = 256
+) -> set[str]:
+    found: set[str] = set()
+    for start in range(0, len(ids), batch_size):
+        batch = ids[start : start + batch_size]
+        points = client.retrieve(
+            collection_name=collection_name,
+            ids=batch,
+            with_payload=False,
+            with_vectors=False,
+        )
+        for point in points:
+            found.add(str(point.id))
+    return found
+
+
+def _chunk_label(doc, chunk_id: str) -> str:
+    src = str(doc.metadata.get("source_file", "unknown"))
+    page = str(doc.metadata.get("page", "?"))
+    idx = str(doc.metadata.get("chunk_index", "?"))
+    return f"{src} page={page} chunk={idx} id={chunk_id}"
+
+
+def main(pdf_dir: str = "data/pdfs", force: bool = False) -> None:
     settings = _get_settings()
 
     if not settings.openai_api_key:
@@ -94,23 +129,55 @@ def main(pdf_dir: str = "data/pdfs") -> None:
         ids.append(chunk_id)
 
     # Quick connectivity check (raises early if Qdrant is not reachable).
-    client = QdrantClient(url=settings.qdrant_url)
+    client = QdrantClient(
+        url=settings.qdrant_url,
+        api_key=settings.qdrant_api_key or None,
+    )
     client.get_collections()
+    collection_exists = client.collection_exists(settings.collection_name)
+
+    new_chunks = chunks
+    new_ids = ids
+    if collection_exists and not force:
+        existing_ids = existing_ids_in_collection(client, settings.collection_name, ids)
+        new_chunks = []
+        new_ids = []
+        for chunk, chunk_id in zip(chunks, ids):
+            if chunk_id in existing_ids:
+                print(f"SKIP    {_chunk_label(chunk, chunk_id)}")
+                continue
+            print(f"INSERT  {_chunk_label(chunk, chunk_id)}")
+            new_chunks.append(chunk)
+            new_ids.append(chunk_id)
+
+        if not new_ids:
+            print(
+                f"No new chunks to ingest ({len(chunks)} already present) "
+                f"in collection={settings.collection_name}"
+            )
+            return
+    elif force:
+        for chunk, chunk_id in zip(chunks, ids):
+            print(f"FORCE   {_chunk_label(chunk, chunk_id)}")
+    else:
+        for chunk, chunk_id in zip(chunks, ids):
+            print(f"INSERT  {_chunk_label(chunk, chunk_id)}")
 
     embeddings = OpenAIEmbeddings(model=settings.embedding_model)
 
     # Avoid Qdrant.from_documents() here because some langchain/qdrant-client version
     # combinations break on `recreate_collection(init_from=...)`.
-    ensure_collection(client, settings.collection_name, embeddings)
-    vs = Qdrant(
+    if not collection_exists:
+        ensure_collection(client, settings.collection_name, embeddings)
+    vs = QdrantVectorStore(
         client=client,
         collection_name=settings.collection_name,
-        embeddings=embeddings,
+        embedding=embeddings,
     )
-    vs.add_documents(chunks, ids=ids)
+    vs.add_documents(new_chunks, ids=new_ids)
 
     print(
-        f"Ingested {len(chunks)} chunks from {len(docs)} pages "
+        f"Ingested {len(new_chunks)} new chunks (of {len(chunks)} total) from {len(docs)} pages "
         f"into collection={settings.collection_name}"
     )
 
@@ -118,5 +185,10 @@ def main(pdf_dir: str = "data/pdfs") -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Ingest PDFs into Qdrant")
     parser.add_argument("--pdf-dir", default="data/pdfs", help="Directory containing PDF files")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-embed and upsert all chunks even if they already exist",
+    )
     args = parser.parse_args()
-    main(args.pdf_dir)
+    main(args.pdf_dir, force=args.force)

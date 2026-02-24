@@ -19,6 +19,7 @@ load_dotenv(_REPO_ROOT_DIR / ".env", override=True)
 @dataclass(frozen=True)
 class Settings:
     qdrant_url: str = os.getenv("QDRANT_URL", "http://localhost:6333")
+    qdrant_api_key: str = os.getenv("QDRANT_API_KEY", "")
     collection_name: str = os.getenv("QDRANT_COLLECTION", "pdf_demo")
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     embedding_model: str = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")

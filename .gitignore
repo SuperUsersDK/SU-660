@@ -5,6 +5,7 @@ __pycache__/
 demo/output/*.jsonl
 demo_real/output/*.jsonl
 demo_real/.chroma/
+demo_full/data/
 demo-full/qdrant_storage/**
 !demo-full/qdrant_storage/.gitkeep
 .env
