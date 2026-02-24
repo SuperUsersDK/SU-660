@@ -5,7 +5,10 @@ from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
-from demo_real.common_real import chroma_dir, get_models, load_env, sample_documents
+try:
+    from demo_real.common_real import chroma_dir, get_models, load_env, sample_documents
+except ModuleNotFoundError:
+    from common_real import chroma_dir, get_models, load_env, sample_documents
 
 
 def build_vectorstore() -> Chroma:
@@ -57,4 +60,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

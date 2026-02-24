@@ -16,6 +16,12 @@ python3 -m venv .venv
 pip install -r requirements.txt
 ```
 
+Bemærk om versioner:
+
+- Demoerne er nu skrevet til `langchain` 1.x API (agent-demoen bruger `create_agent`, ikke `AgentExecutor/create_tool_calling_agent`).
+- Anbefalet er at bruge versions-ranges i `requirements.txt` (nu sat til `langchain*` 1.x).
+- Testet i dette repo-miljø med bl.a. `langchain==1.2.10`, `langchain-openai==1.1.10`, `langchain-chroma==1.1.0`, `chromadb==1.5.1`, `openai==2.23.0`.
+
 2. Opret miljøvariabler (kopiér fra `.env.example`):
 
 ```bash
@@ -31,6 +37,8 @@ cp demo_real/.env.example .env
 .venv/bin/python demo_real/11_agent_tool_calling_langchain.py
 .venv/bin/python demo_real/09_eval_loop_openai.py
 ```
+
+Direkte fil-kørsel (`python3 demo_real/...py`) er understøttet i demoerne.
 
 Alternativt:
 
@@ -53,3 +61,4 @@ make demo-real-agent
 - Demoerne er små og undervisningsvenlige, ikke produktionsklar kode.
 - Der bruges lokal Chroma persist i `demo_real/.chroma/`.
 - API-kald koster penge; brug korte prompts og små demo-datasæt live.
+- Hvis I opgraderer `langchain` major-version igen, forvent især ændringer omkring agents/tool-calling APIs.

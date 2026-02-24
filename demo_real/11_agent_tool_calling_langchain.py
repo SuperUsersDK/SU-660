@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any
 
-from langchain.agents import AgentExecutor, create_tool_calling_agent
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.agents import create_agent
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
-from demo_real.common_real import get_models, load_env
+try:
+    from demo_real.common_real import get_models, load_env
+except ModuleNotFoundError:
+    from common_real import get_models, load_env
 
 
 @tool
@@ -41,30 +44,43 @@ def current_utc_time() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def build_agent() -> AgentExecutor:
+def build_agent() -> Any:
     chat_model, _ = get_models()
     llm = ChatOpenAI(model=chat_model, temperature=0)
     tools = [fx_rate, incident_status, current_utc_time]
 
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                "Du er en senior AI-udviklerassistent. Brug tools når opgaven kræver faktiske opslag eller beregninger. "
-                "Svar kort, præcist og på dansk.",
-            ),
-            ("human", "{input}"),
-            MessagesPlaceholder("agent_scratchpad"),
-        ]
+    return create_agent(
+        llm,
+        tools=tools,
+        system_prompt=(
+            "Du er en senior AI-udviklerassistent. Brug tools når opgaven kræver faktiske opslag eller beregninger. "
+            "Svar kort, præcist og på dansk."
+        ),
     )
 
-    agent = create_tool_calling_agent(llm, tools, prompt)
-    return AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+def _message_text(message: Any) -> str:
+    content = getattr(message, "content", None)
+    if content is None and isinstance(message, dict):
+        content = message.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                text = item.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+        return "\n".join(parts).strip()
+    return str(content) if content is not None else str(message)
 
 
 def main() -> None:
     load_env()
-    executor = build_agent()
+    agent = build_agent()
 
     question = (
         "Vi laver en demo til kurset. Fortæl status på ticket INC-1002, "
@@ -72,11 +88,12 @@ def main() -> None:
         "Svar i 3 bullets."
     )
 
-    result = executor.invoke({"input": question})
+    result = agent.invoke({"messages": [{"role": "user", "content": question}]})
+    messages = result.get("messages", []) if isinstance(result, dict) else []
+    final_text = _message_text(messages[-1]) if messages else str(result)
     print("\n=== Agent final response ===")
-    print(result["output"])
+    print(final_text)
 
 
 if __name__ == "__main__":
     main()
-

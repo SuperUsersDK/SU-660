@@ -4,7 +4,10 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
-from demo_real.common_real import get_models, load_env
+try:
+    from demo_real.common_real import get_models, load_env
+except ModuleNotFoundError:
+    from common_real import get_models, load_env
 
 
 @tool
@@ -40,4 +43,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

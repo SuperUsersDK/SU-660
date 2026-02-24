@@ -7,7 +7,10 @@ from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
-from demo_real.common_real import chroma_dir, get_models, load_env, sample_documents
+try:
+    from demo_real.common_real import chroma_dir, get_models, load_env, sample_documents
+except ModuleNotFoundError:
+    from common_real import chroma_dir, get_models, load_env, sample_documents
 
 
 EVAL_CASES = [
@@ -84,4 +87,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
