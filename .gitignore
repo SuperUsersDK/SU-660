@@ -1,11 +1,12 @@
 __pycache__/
 *.pyc
+.DS_Store
 .venv/
 
 demo/output/*.jsonl
 demo_real/output/*.jsonl
 demo_real/.chroma/
 demo_full/data/
-demo-full/qdrant_storage/**
-!demo-full/qdrant_storage/.gitkeep
+demo_full/qdrant_storage/**
+!demo_full/qdrant_storage/.gitkeep
 .env
