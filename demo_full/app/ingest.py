@@ -49,16 +49,16 @@ def stable_id(text: str, source: str, page: int, idx: int) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_URL, digest))
 
 
-def load_documents(pdf_dir: str) -> list:
+def load_documents(document_dir: str) -> list:
     docs = []
-    for pdf_path in sorted(glob.glob(str(Path(pdf_dir) / "*.pdf"))):
+    for pdf_path in sorted(glob.glob(str(Path(document_dir) / "*.pdf"))):
         loader = PyPDFLoader(pdf_path)
         loaded = loader.load()
         for doc in loaded:
             doc.metadata["source_file"] = Path(pdf_path).name
             doc.metadata["source_type"] = "pdf"
         docs.extend(loaded)
-    for txt_path in sorted(glob.glob(str(Path(pdf_dir) / "*.txt"))):
+    for txt_path in sorted(glob.glob(str(Path(document_dir) / "*.txt"))):
         loader = TextLoader(txt_path, autodetect_encoding=True)
         loaded = loader.load()
         for doc in loaded:
@@ -107,15 +107,15 @@ def _chunk_label(doc, chunk_id: str) -> str:
     return f"{src} page={page} chunk={idx} id={chunk_id}"
 
 
-def main(pdf_dir: str = "data/pdfs", force: bool = False) -> None:
+def main(document_dir: str = "data/pdfs", force: bool = False) -> None:
     settings = _get_settings()
 
     if not settings.openai_api_key:
         raise RuntimeError("OPENAI_API_KEY mangler")
 
-    docs = load_documents(pdf_dir)
+    docs = load_documents(document_dir)
     if not docs:
-        raise RuntimeError(f"Ingen PDF/TXT-filer fundet i {pdf_dir}")
+        raise RuntimeError(f"Ingen PDF/TXT-filer fundet i {document_dir}")
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=800,
@@ -193,7 +193,9 @@ def main(pdf_dir: str = "data/pdfs", force: bool = False) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Ingest PDF/TXT files into Qdrant")
     parser.add_argument(
+        "--document-dir",
         "--pdf-dir",
+        dest="document_dir",
         default="data/pdfs",
         help="Directory containing PDF/TXT files",
     )
@@ -203,4 +205,4 @@ if __name__ == "__main__":
         help="Re-embed and upsert all chunks even if they already exist",
     )
     args = parser.parse_args()
-    main(args.pdf_dir, force=args.force)
+    main(args.document_dir, force=args.force)

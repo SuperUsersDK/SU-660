@@ -56,6 +56,11 @@ def build_context(docs: list[Document]) -> str:
     return "\n\n".join(parts)
 
 
+def retrieval_hits_with_scores(question: str, k: int = 8) -> list[tuple[Document, float]]:
+    vs = build_vs()
+    return vs.similarity_search_with_score(question, k=k)
+
+
 def rag_answer(question: str, k: int = 8) -> str:
     vs = build_vs()
     retriever = vs.as_retriever(search_kwargs={"k": k})
@@ -149,3 +154,30 @@ def agent_answer(question: str) -> str:
         return str(result)
     messages = result.get("messages", [])
     return _message_text(messages[-1]) if messages else str(result)
+
+
+def format_retrieval_score_lines(question: str, k: int = 8) -> list[str]:
+    hits = retrieval_hits_with_scores(question, k=k)
+    lines: list[str] = []
+    for i, (doc, score) in enumerate(hits, start=1):
+        src = doc.metadata.get("source_file", "unknown")
+        page = doc.metadata.get("page")
+        page_part = f" page={page}" if page is not None else ""
+        lines.append(f"{i}. score={score:.4f} source={src}{page_part}")
+    return lines
+
+
+def retrieval_hits_summary(question: str, k: int = 8) -> list[dict[str, Any]]:
+    hits = retrieval_hits_with_scores(question, k=k)
+    out: list[dict[str, Any]] = []
+    for i, (doc, score) in enumerate(hits, start=1):
+        out.append(
+            {
+                "rank": i,
+                "score": score,
+                "source_file": doc.metadata.get("source_file", "unknown"),
+                "page": doc.metadata.get("page"),
+                "chunk_id": doc.metadata.get("chunk_id"),
+            }
+        )
+    return out
