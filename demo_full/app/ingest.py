@@ -18,7 +18,7 @@ if sys.version_info >= (3, 14):
     )
 
 from dotenv import load_dotenv
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_qdrant import QdrantVectorStore
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -49,13 +49,21 @@ def stable_id(text: str, source: str, page: int, idx: int) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_URL, digest))
 
 
-def load_pdfs(pdf_dir: str) -> list:
+def load_documents(pdf_dir: str) -> list:
     docs = []
     for pdf_path in sorted(glob.glob(str(Path(pdf_dir) / "*.pdf"))):
         loader = PyPDFLoader(pdf_path)
         loaded = loader.load()
         for doc in loaded:
             doc.metadata["source_file"] = Path(pdf_path).name
+            doc.metadata["source_type"] = "pdf"
+        docs.extend(loaded)
+    for txt_path in sorted(glob.glob(str(Path(pdf_dir) / "*.txt"))):
+        loader = TextLoader(txt_path, autodetect_encoding=True)
+        loaded = loader.load()
+        for doc in loaded:
+            doc.metadata["source_file"] = Path(txt_path).name
+            doc.metadata["source_type"] = "txt"
         docs.extend(loaded)
     return docs
 
@@ -105,9 +113,9 @@ def main(pdf_dir: str = "data/pdfs", force: bool = False) -> None:
     if not settings.openai_api_key:
         raise RuntimeError("OPENAI_API_KEY mangler")
 
-    docs = load_pdfs(pdf_dir)
+    docs = load_documents(pdf_dir)
     if not docs:
-        raise RuntimeError(f"Ingen PDF-filer fundet i {pdf_dir}")
+        raise RuntimeError(f"Ingen PDF/TXT-filer fundet i {pdf_dir}")
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=800,
@@ -177,14 +185,18 @@ def main(pdf_dir: str = "data/pdfs", force: bool = False) -> None:
     vs.add_documents(new_chunks, ids=new_ids)
 
     print(
-        f"Ingested {len(new_chunks)} new chunks (of {len(chunks)} total) from {len(docs)} pages "
+        f"Ingested {len(new_chunks)} new chunks (of {len(chunks)} total) from {len(docs)} source docs "
         f"into collection={settings.collection_name}"
     )
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Ingest PDFs into Qdrant")
-    parser.add_argument("--pdf-dir", default="data/pdfs", help="Directory containing PDF files")
+    parser = argparse.ArgumentParser(description="Ingest PDF/TXT files into Qdrant")
+    parser.add_argument(
+        "--pdf-dir",
+        default="data/pdfs",
+        help="Directory containing PDF/TXT files",
+    )
     parser.add_argument(
         "--force",
         action="store_true",
