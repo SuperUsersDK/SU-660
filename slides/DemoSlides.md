@@ -140,4 +140,4 @@ Speaker notes:
 Speaker notes:
 - Markér tydeligt forskel på mock-demoer (`demo/`) og API-afhængige demoer (`demo_real/`).
 - Kør kun real demoer hvis netværk/API-nøgler er klar.
-- Brug `Makefile` targets for hurtig opsætning og demo-kørsel.
+- Brug direkte `python`/`uvicorn` kommandoer for hurtig opsætning og demo-kørsel.

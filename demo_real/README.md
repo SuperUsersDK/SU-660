@@ -41,14 +41,6 @@ cp demo_real/.env.example .env
 
 Direkte fil-kørsel (`python3 demo_real/...py`) er understøttet i demoerne.
 
-Alternativt:
-
-```bash
-make demo-real
-make demo-real-rag
-make demo-real-agent
-```
-
 ## Dækkede kursus-demoer
 
 - Demo 1: robust prompt template (`01_prompt_template_openai.py`)

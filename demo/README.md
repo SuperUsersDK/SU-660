@@ -7,8 +7,11 @@ Denne mappe indeholder Python-demoer og korte beskrivelser til alle demo-punkter
 Anbefalet (via `venv`):
 
 ```bash
-make venv
-make demo
+python3 -m venv .venv
+. .venv/bin/activate
+python3 demo/01_prompt_template.py
+python3 demo/05_rag_chat.py
+python3 demo/07_chain_with_tool.py
 ```
 
 Eller kør en enkelt demo direkte fra repo-roden:
