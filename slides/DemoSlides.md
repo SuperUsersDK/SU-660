@@ -1,5 +1,35 @@
 # Demo Slides - Generativ AI og LLM (Python)
 
+## Slide 0 - Kursusagenda (3 dage)
+
+### Dag 1: Fundament
+
+- prompt design og prompt templates
+- kontekstvindue / memory trimming
+- retrieval-begreber og simpel RAG
+- introduktion til evaluering
+
+### Dag 2: RAG datalag og retrieval-kvalitet
+
+- chunking-strategier (size, overlap, boundaries)
+- embeddings (dense vs sparse, similarity, metadata, hybrid)
+- retrieval-tuning og benchmark-tankegang
+- grounding og citations
+
+### Dag 3: Systemer, drift og integration
+
+- tools/chains/agents
+- workflows og orchestration
+- eval-loops og A/B-sammenligning
+- demo_full (ingest, Qdrant, CLI, API) og praktisk opsamling
+
+Speaker notes:
+- Brug denne slide til at sætte forventninger: vi bygger lagvist op.
+- Peg på at chunking + embeddings er dag 2-kernen for god RAG-kvalitet.
+- Kobl dag 3 til "fra demo til system" (reproducérbarhed, evaluering, integration).
+
+---
+
 ## Slide 1 - Demo 1: Prompt template
 
 - Mål: Vis forskellen mellem løs prompt og robust prompt-template
@@ -75,6 +105,54 @@ Speaker notes:
 - Gå direkte til tabellen og forklar kolonnerne.
 - Fremhæv at små benchmark-tests er nok til tidlig læring.
 - Kobl til øvelse 6 (eksperiment og måling).
+
+---
+
+## Slide 6A - Embeddings modul: Dense vs sparse retrieval
+
+- Mål: Forklare hvad embeddings bidrager med i retrieval-laget
+- Fokus: dense (embedding) vs sparse (keyword) retrieval
+- Demo-fil: `embeddings/01_lexical_vs_dense.py`
+
+Speaker notes:
+- Brug denne slide som bro fra chunking til retrieval-kvalitet.
+- Peg på at embeddings ikke erstatter chunking eller metadata.
+- Vis hvordan parafraser kan rammes bedre med dense retrieval.
+
+---
+
+## Slide 6B - Embeddings modul: Similarity, metadata og hybrid
+
+- Mål: Vise praktiske designvalg i embedding-baseret retrieval
+- Fokus: cosine vs dot, metadata-filter, hybrid retrieval (RRF)
+- Demo-filer:
+  - `embeddings/02_similarity_metrics.py`
+  - `embeddings/05_metadata_filtering.py`
+  - `embeddings/06_hybrid_retrieval_rrf.py`
+
+Speaker notes:
+- Start med metric/normalisering, ellers bliver scores svære at tolke.
+- Vis metadata-filter før vector search som precision/governance-greb.
+- Slut med hybrid retrieval som en stærk praktisk default i mange RAG-systemer.
+
+---
+
+## Slide 6C - Embeddings modul: Modelvalg og kursusforankring
+
+- Mål: Forberede deltagerne på rigtige modelvalg i dag 2/3 RAG-arbejde
+- Fokus: quality, latency, cost, dimension, evaluering
+- Demo-filer:
+  - `embeddings/07_model_tradeoffs.py`
+  - (valgfri live) `embeddings/08_openai_embeddings_demo.py`
+- Materialer:
+  - `embeddings.md`
+  - `embeddings_slides.md`
+  - `embeddings/README.md`
+
+Speaker notes:
+- Betoningen skal være "evaluer på egne queries", ikke model-branding.
+- Kobl tilbage til chunking: embeddings og chunking skal tunes sammen.
+- Placer modulet som dag 2-kernen før mere komplette RAG pipelines (`demo_full`).
 
 ---
 

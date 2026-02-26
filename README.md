@@ -5,6 +5,7 @@ Samlet demo-repo til undervisning i:
 - prompt engineering
 - retrieval / RAG
 - chunking-strategier
+- embeddings-strategier
 - tool-calling
 - evaluering
 - simple API/CLI-demoer
@@ -15,6 +16,7 @@ Repoet indeholder baade:
 - **"real" demoer** med OpenAI/LangChain/Chroma
 - **fuld RAG-demo** med Qdrant + CLI + API
 - **undervisningsmateriale om chunking** (inkl. Python-eksempler og slides)
+- **undervisningsmateriale om embeddings** (inkl. Python-eksempler og slides)
 
 ## Projektstruktur
 
@@ -24,8 +26,11 @@ SU-660/
   demo_real/            # OpenAI + LangChain + Chroma demoer
   demo_full/            # fuld RAG demo (Qdrant + ingest + CLI + API)
   chunking/             # chunking Python-eksempler (undervisning)
+  embeddings/           # embeddings Python-eksempler (undervisning)
   chunking.md           # dyb undervisningsguide om chunking
   chunking_slides.md    # slide/manus-version om chunking
+  embeddings.md         # dyb undervisningsguide om embeddings
+  embeddings_slides.md  # slide/manus-version om embeddings
   slides/               # kursusslides
   requirements.txt      # root Python dependencies
 ```
@@ -98,6 +103,22 @@ Se:
 - `chunking.md`
 - `chunking_slides.md`
 - `chunking/README.md`
+
+## `embeddings/` + `embeddings.md`
+
+Undervisningsmateriale og scripts om embeddings i RAG:
+
+- dense vs sparse retrieval
+- similarity metrics (cosine/dot) og normalisering
+- query-strategier (rewrite, multi-query)
+- metadata-filtre og hybrid retrieval
+- modelvalg, tradeoffs og evaluering
+
+Se:
+
+- `embeddings.md`
+- `embeddings_slides.md`
+- `embeddings/README.md`
 
 ## Krav / forudsætninger
 
@@ -199,7 +220,22 @@ Der findes også en root `.env.example`.
 
 (begge er allerede i root `requirements.txt`)
 
-### 3) `demo_real` (OpenAI/LangChain/Chroma)
+### 3) Embeddings undervisningsdemoer
+
+```bash
+.venv/bin/python embeddings/01_lexical_vs_dense.py
+.venv/bin/python embeddings/02_similarity_metrics.py
+.venv/bin/python embeddings/06_hybrid_retrieval_rrf.py
+.venv/bin/python embeddings/07_model_tradeoffs.py
+```
+
+Valgfri live API demo:
+
+```bash
+.venv/bin/python embeddings/08_openai_embeddings_demo.py
+```
+
+### 4) `demo_real` (OpenAI/LangChain/Chroma)
 
 ```bash
 .venv/bin/python demo_real/01_prompt_template_openai.py
