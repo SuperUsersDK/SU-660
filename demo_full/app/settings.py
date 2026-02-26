@@ -10,9 +10,9 @@ from dotenv import load_dotenv
 _DEMO_FULL_DIR = Path(__file__).resolve().parents[1]
 _REPO_ROOT_DIR = Path(__file__).resolve().parents[2]
 
-# Load local demo-full env first, then let repo-root .env override it.
-# This avoids an empty placeholder in demo-full/.env shadowing a real key in root .env.
-load_dotenv(_DEMO_FULL_DIR / ".env")
+# Load local demo_full env first, then repo-root .env second.
+# Both use override=True so .env values replace stale shell vars; root wins because it is loaded last.
+load_dotenv(_DEMO_FULL_DIR / ".env", override=True)
 load_dotenv(_REPO_ROOT_DIR / ".env", override=True)
 
 

@@ -31,7 +31,7 @@ except ModuleNotFoundError:
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-load_dotenv(_REPO_ROOT / ".env")
+load_dotenv(_REPO_ROOT / ".env", override=True)
 
 
 def cosine(a: list[float], b: list[float]) -> float:

@@ -31,7 +31,7 @@ def _get_settings():
     global SETTINGS
     # Match demo_real behavior: let python-dotenv discover and load .env at runtime.
     # This happens before importing app.settings, so Settings captures the loaded values.
-    load_dotenv()
+    load_dotenv(override=True)
     if SETTINGS is not None:
         return SETTINGS
     try:

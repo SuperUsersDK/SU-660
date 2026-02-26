@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 
 def load_env() -> None:
-    load_dotenv()
+    load_dotenv(override=True)
 
 
 def require_env(name: str, default: str | None = None) -> str:
@@ -60,4 +60,3 @@ def chroma_dir() -> str:
     path = Path("demo_real/.chroma")
     path.mkdir(parents=True, exist_ok=True)
     return str(path)
-
