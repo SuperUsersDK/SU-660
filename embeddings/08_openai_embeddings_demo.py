@@ -2,7 +2,7 @@
 Demo 08: Rigtigt embedding-API kald (OpenAI).
 
 Kraever:
-- OPENAI_API_KEY i miljoe/.env
+- OPENAI_API_KEY i repoets .env i roden
 - `openai` package installeret (findes i root requirements.txt)
 
 Viser:
@@ -31,6 +31,8 @@ except ModuleNotFoundError:
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
 load_dotenv(_REPO_ROOT / ".env", override=True)
 
 
@@ -50,7 +52,7 @@ def main() -> None:
 
     api_key = env_openai_key()
     if not api_key:
-        print("OPENAI_API_KEY mangler. Saet miljoevariabel eller .env foerst.")
+        print("OPENAI_API_KEY mangler. Saet den i .env i projektets rod.")
         return
 
     model = os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-small")

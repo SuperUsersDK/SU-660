@@ -1,4 +1,5 @@
 from pathlib import Path
+from terminal_ui import BOLD, CYAN, GREEN, YELLOW, colorize, print_label, print_section
 
 ALLOWED_EXTENSIONS = {".pdf", ".md", ".txt"}
 ALLOWED_FOLDER = "knowledge_base"
@@ -29,28 +30,33 @@ def find_documents(base_path: str | Path, required_folder: str | None = ALLOWED_
 
 def main() -> None:
     docs = find_documents(DEFAULT_DATA_DIR)
+    print_section("Filter 1 - Find dokumenter")
 
     if not docs:
         fallback_docs = find_documents(DEFAULT_DATA_DIR, required_folder=None)
 
         if fallback_docs:
-            print(
-                f"Ingen dokumenter fundet i mappen {ALLOWED_FOLDER!r} under {DEFAULT_DATA_DIR}."
-            )
-            print("Viser i stedet alle filer med gyldige filendelser:")
+            print(colorize(
+                f"Ingen dokumenter fundet i mappen {ALLOWED_FOLDER!r} under {DEFAULT_DATA_DIR}.",
+                BOLD,
+                YELLOW,
+            ))
+            print(colorize("Viser i stedet alle filer med gyldige filendelser:", YELLOW))
+            print_label("DOKUMENTER", GREEN)
             for doc in fallback_docs:
-                print(doc)
+                print(colorize(f"- {doc}", GREEN))
             return
 
-        print(f"Ingen dokumenter fundet i {DEFAULT_DATA_DIR}")
-        print(
-            f"Forventede filtyper: {sorted(ALLOWED_EXTENSIONS)}"
-            f" og mappe med navn: {ALLOWED_FOLDER!r}"
-        )
+        print(colorize(f"Ingen dokumenter fundet i {DEFAULT_DATA_DIR}", BOLD, YELLOW))
+        print(colorize(
+            f"Forventede filtyper: {sorted(ALLOWED_EXTENSIONS)} og mappe med navn: {ALLOWED_FOLDER!r}",
+            YELLOW,
+        ))
         return
 
+    print_label("DOKUMENTER", GREEN)
     for doc in docs:
-        print(doc)
+        print(colorize(f"- {doc}", GREEN))
 
 
 if __name__ == "__main__":

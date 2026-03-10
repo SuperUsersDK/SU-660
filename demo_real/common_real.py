@@ -6,9 +6,11 @@ from typing import Any
 
 from dotenv import load_dotenv
 
+_REPO_ROOT_DIR = Path(__file__).resolve().parent.parent
+
 
 def load_env() -> None:
-    load_dotenv(override=True)
+    load_dotenv(_REPO_ROOT_DIR / ".env", override=True)
 
 
 def require_env(name: str, default: str | None = None) -> str:

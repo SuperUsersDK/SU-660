@@ -25,13 +25,13 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from qdrant_client import QdrantClient, models as qdrant_models
 
 SETTINGS = None
+_REPO_ROOT_DIR = Path(__file__).resolve().parents[2]
 
 
 def _get_settings():
     global SETTINGS
-    # Match demo_real behavior: let python-dotenv discover and load .env at runtime.
-    # This happens before importing app.settings, so Settings captures the loaded values.
-    load_dotenv(override=True)
+    # Load the single supported .env file from the git repo root.
+    load_dotenv(_REPO_ROOT_DIR / ".env", override=True)
     if SETTINGS is not None:
         return SETTINGS
     try:

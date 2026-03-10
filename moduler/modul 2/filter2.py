@@ -1,4 +1,5 @@
 import re
+from terminal_ui import BOLD, CYAN, GREEN, RED, colorize, print_label, print_section
 
 
 def is_useful_text(text: str | None, min_length: int = 80) -> bool:
@@ -41,8 +42,12 @@ def main() -> None:
         "Embeddings repraesenterer tekst som numeriske vektorer, som bruges til similarity search i et RAG-system.",
     ]
 
+    print_section("Filter 2 - Brugbar tekst")
+    print_label("RESULTATER", CYAN)
     for text in examples:
-        print(is_useful_text(text), "->", repr(text))
+        result = is_useful_text(text)
+        status = colorize(str(result), BOLD, GREEN if result else RED)
+        print(f"{status} -> {repr(text)}")
 
 
 if __name__ == "__main__":

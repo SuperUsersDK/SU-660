@@ -22,10 +22,10 @@ Bemærk om versioner:
 - Anbefalet er at bruge versions-ranges i `requirements.txt` (nu sat til `langchain*` 1.x).
 - Testet i dette repo-miljø med bl.a. `langchain==1.2.10`, `langchain-openai==1.1.10`, `langchain-chroma==1.1.0`, `chromadb==1.5.1`, `openai==2.23.0`.
 
-2. Opret miljøvariabler (kopiér fra `.env.example`):
+2. Opret miljøvariabler i repo-roden (kopiér fra `.env.example`):
 
 ```bash
-cp demo_real/.env.example .env
+cp .env.example .env
 ```
 
 3. Kør demoer fra repo-roden:

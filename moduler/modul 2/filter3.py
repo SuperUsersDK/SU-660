@@ -1,3 +1,5 @@
+from terminal_ui import BOLD, GREEN, RED, YELLOW, colorize, print_label, print_section
+
 documents = [
     {
         "text": "RAG bruges til at kombinere retrieval og generation.",
@@ -47,13 +49,19 @@ def filter_documents(docs: list[dict] | None) -> list[dict]:
 
 def main() -> None:
     filtered_docs = filter_documents(documents)
+    print_section("Filter 3 - Metadata")
 
     if not filtered_docs:
-        print("Ingen dokumenter matchede metadata-filteret.")
+        print(colorize("Ingen dokumenter matchede metadata-filteret.", BOLD, YELLOW))
         return
 
+    print_label("MATCHENDE DOKUMENTER", GREEN)
     for doc in filtered_docs:
-        print(doc.get("text", "<mangler text>"))
+        text = doc.get("text")
+        if text:
+            print(colorize(f"- {text}", GREEN))
+        else:
+            print(colorize("- <mangler text>", RED))
 
 
 if __name__ == "__main__":

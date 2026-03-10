@@ -17,7 +17,6 @@ Bemærk:
 ```text
 demo_full/
   docker-compose.yml
-  .env
   requirements.txt
   app/
     ingest.py
@@ -45,7 +44,7 @@ Documents (PDF/TXT) -> app/ingest.py -> Qdrant collection
                    (terminal demo)         (POST /ask endpoint)
 ```
 
-- `app/settings.py`: loader konfiguration fra `demo_full/.env` og repo-root `.env` til `SETTINGS`.
+- `app/settings.py`: loader konfiguration fra `.env` i repo-roden til `SETTINGS`.
 - `app/tools.py`: definerer agent-tools (`calculator`, `doc_stats`, `search_in_context`).
 - `app/ingest.py`: læser PDF/TXT, chunker, laver embeddings og upserter til Qdrant med stabile IDs.
 - `app/rag_chain.py`: bygger Qdrant vector store, retrieval-funktioner, RAG chain og tool-calling agent.
@@ -69,7 +68,7 @@ python3 -m venv .venv
 pip install -r requirements.txt
 ```
 
-3. Sæt env (`demo_full/.env`)
+3. Sæt env i `.env` i repo-roden
 
 ```bash
 OPENAI_API_KEY=...

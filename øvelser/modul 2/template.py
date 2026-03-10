@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from terminal_ui import GREEN, YELLOW, colorize, print_label, print_section
 
 DATA_DIR = Path(__file__).resolve().parent / "test_dokumenter"
 
@@ -48,13 +49,14 @@ def main() -> None:
     documents = load_documents(DATA_DIR)
     kept_documents, removed_documents = filter_documents(documents)
 
-    print("Beholdte dokumenter:")
+    print_section("Template - Dokumentfilter")
+    print_label("BEHOLDTE DOKUMENTER", GREEN)
     for document in kept_documents:
-        print(f"- {document['path'].name}")
+        print(colorize(f"- {document['path'].name}", GREEN))
 
-    print("\nFrasorterede dokumenter:")
+    print_label("FRASORTEREDE DOKUMENTER", YELLOW)
     for path, reason in removed_documents:
-        print(f"- {path.name}: {reason}")
+        print(colorize(f"- {path.name}: {reason}", YELLOW))
 
 
 if __name__ == "__main__":
