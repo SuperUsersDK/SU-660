@@ -1,2 +1,0 @@
-# Chunking examples package marker.
-
