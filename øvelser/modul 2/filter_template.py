@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from terminal_ui import GREEN, YELLOW, colorize, print_label, print_section
+import sys
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from tools.terminal_ui import GREEN, YELLOW, colorize, print_label, print_section
 
 DATA_DIR = Path(__file__).resolve().parent / "test_dokumenter"
 

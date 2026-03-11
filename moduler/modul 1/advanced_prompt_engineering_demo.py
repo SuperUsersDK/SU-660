@@ -1,11 +1,25 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import sys
 from pathlib import Path
-from terminal_ui import BLUE, BOLD, CYAN, DIM, GREEN, YELLOW, colorize, print_label, print_section, prompt_to_continue
+
+from dotenv import load_dotenv
+from openai import OpenAI
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from tools.terminal_ui import BLUE, BOLD, CYAN, DIM, GREEN, YELLOW, clear_screen, colorize, print_label, print_section, prompt_to_continue
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
+
+
+def load_root_env() -> None:
+    load_dotenv(ROOT_DIR / ".env", override=True)
 
 
 def tokenize(text: str) -> list[str]:
@@ -76,99 +90,90 @@ def render_prompt(
     return "\n\n".join(parts)
 
 
-def answer_from_context(question: str, context_blocks: list[str]) -> tuple[str, list[int]]:
-    question_tokens = set(tokenize(question))
-    matches: list[tuple[int, int, str]] = []
-
-    for index, block in enumerate(context_blocks, start=1):
-        sentences = [sentence.strip() for sentence in re.split(r"(?<=[.!?])\s+", block) if sentence.strip()]
-        for sentence in sentences:
-            score = len(question_tokens.intersection(tokenize(sentence)))
-            if score > 0:
-                matches.append((score, index, sentence))
-
-    matches.sort(key=lambda item: item[0], reverse=True)
-
-    if not matches:
-        return "", []
-
-    chosen = matches[:2]
-    text = " ".join(sentence for _, _, sentence in chosen)
-    sources = sorted({index for _, index, _ in chosen})
-    return text, sources
+def call_openai(client: OpenAI, prompt: str) -> str:
+    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    response = client.chat.completions.create(
+        model=model,
+        temperature=0,
+        messages=[
+            {
+                "role": "system",
+                "content": "Du er en teknisk assistent. Foelg brugerens prompt noejagtigt og svar paa dansk.",
+            },
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ],
+    )
+    return response.choices[0].message.content or ""
 
 
-def trim_sentences(text: str, max_sentences: int | None) -> str:
-    if max_sentences is None:
-        return text
+def call_openai_json(client: OpenAI, prompt: str) -> str:
+    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    response = client.chat.completions.create(
+        model=model,
+        temperature=0,
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "rag_explanation",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "begreb": {"type": "string"},
+                        "forklaring": {"type": "string"},
+                        "anvendelse_i_rag": {"type": "string"},
+                        "noegleord": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                        "sources": {
+                            "type": "array",
+                            "items": {"type": "integer"},
+                        },
+                    },
+                    "required": [
+                        "begreb",
+                        "forklaring",
+                        "anvendelse_i_rag",
+                        "noegleord",
+                        "sources",
+                    ],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Du er en teknisk assistent. Returner kun gyldig JSON, der matcher schemaet noejagtigt."
+                ),
+            },
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ],
+    )
+    return response.choices[0].message.content or ""
 
-    sentences = [sentence.strip() for sentence in re.split(r"(?<=[.!?])\s+", text) if sentence.strip()]
-    return " ".join(sentences[:max_sentences])
 
-
-def mock_llm(prompt: str, question: str, context_blocks: list[str] | None = None) -> str:
-    prompt_lower = prompt.lower()
-    wants_json = "returner json" in prompt_lower or '"begreb"' in prompt_lower
-    only_context = "kun ud fra konteksten" in prompt_lower
-
-    max_sentences = None
-    sentence_match = re.search(r"maks\s+(\d+)\s+saetninger", prompt_lower)
-    if sentence_match:
-        max_sentences = int(sentence_match.group(1))
-
-    if context_blocks:
-        grounded_answer, sources = answer_from_context(question, context_blocks)
-    else:
-        grounded_answer, sources = "", []
-
-    if only_context and not grounded_answer:
-        if wants_json:
-            return json.dumps(
-                {"answer": "ikke fundet i konteksten", "sources": []},
-                ensure_ascii=True,
-                indent=2,
-            )
-        return "Ikke fundet i konteksten."
-
-    if grounded_answer:
-        answer = grounded_answer
-    elif "embeddings" in question.lower():
-        answer = (
-            "Embeddings er numeriske vektorer, der bruges til at maale semantisk lighed "
-            "mellem tekster."
-        )
-    elif "chunking" in question.lower():
-        answer = (
-            "Chunking deler dokumenter i mindre bidder, saa relevante dele lettere kan findes og bruges."
-        )
-    else:
-        answer = "Brug en tydelig rolle, klare regler og kontrolleret output for mere stabile svar."
-
-    answer = trim_sentences(answer, max_sentences)
-
-    if wants_json:
-        payload = {
-            "begreb": "embeddings" if "embeddings" in question.lower() else "chunking",
-            "forklaring": answer,
-            "anvendelse_i_rag": (
-                "Bruges til retrieval og grounding i et RAG-system."
-                if "embeddings" in question.lower()
-                else "Bruges til at opdele dokumenter i passende bidder til retrieval."
-            ),
-            "noegleord": ["rag", "retrieval", "llm"],
-            "sources": sources,
-        }
-        return json.dumps(payload, ensure_ascii=True, indent=2)
-
-    if sources and ("cite" in prompt_lower or "kilder" in prompt_lower or "sources" in prompt_lower):
-        return f"{answer}\nKilder: {sources}"
-
-    return answer
 def print_prompt_and_response(prompt: str, response: str) -> None:
     print_label("PROMPT", BLUE)
     print(colorize(prompt, DIM))
     print_label("SVAR", GREEN)
     print(colorize(response, GREEN))
+
+
+def pretty_json_if_possible(text: str) -> str:
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return text
+    return json.dumps(parsed, ensure_ascii=False, indent=2)
 
 
 def wait_for_next_step() -> None:
@@ -216,13 +221,20 @@ def print_budget_report(before: dict[str, int], after: dict[str, int]) -> None:
 
 
 def demo() -> None:
+    clear_screen()
+    load_root_env()
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("Missing OPENAI_API_KEY in repo root .env")
+
+    client = OpenAI(api_key=api_key)
     documents = load_knowledge_base()
     question = "Hvad er chunking, og hvad betyder overlap?"
     follow_up = "Hvordan bruges de i RAG?"
 
     print_section("Del 1 - Statisk prompt")
     static_prompt = f"Svar paa spoergsmaalet:\n\n{question}"
-    static_response = mock_llm(static_prompt, question)
+    static_response = call_openai(client, static_prompt)
     print_prompt_and_response(static_prompt, static_response)
     wait_for_next_step()
 
@@ -237,7 +249,7 @@ def demo() -> None:
         ],
         max_sentences=3,
     )
-    improved_static_response = mock_llm(improved_static_prompt, question)
+    improved_static_response = call_openai(client, improved_static_prompt)
     print_prompt_and_response(improved_static_prompt, improved_static_response)
     wait_for_next_step()
 
@@ -253,7 +265,7 @@ def demo() -> None:
         ],
         max_sentences=4,
     )
-    dynamic_response = mock_llm(dynamic_prompt, question, [doc["text"] for doc in retrieved])
+    dynamic_response = call_openai(client, dynamic_prompt)
     print_prompt_and_response(dynamic_prompt, dynamic_response)
     wait_for_next_step()
 
@@ -263,7 +275,7 @@ def demo() -> None:
         question=follow_up,
         max_sentences=2,
     )
-    no_memory_response = mock_llm(no_memory_prompt, follow_up)
+    no_memory_response = call_openai(client, no_memory_prompt)
     print(colorize("\nUden memory", BOLD, YELLOW))
     print_prompt_and_response(no_memory_prompt, no_memory_response)
 
@@ -275,7 +287,7 @@ def demo() -> None:
         context_blocks=[doc["text"] for doc in retrieved],
         max_sentences=3,
     )
-    with_memory_response = mock_llm(with_memory_prompt, "Hvordan bruges embeddings og overlap i RAG?", [doc["text"] for doc in retrieved])
+    with_memory_response = call_openai(client, with_memory_prompt)
     print(colorize("\nMed memory", BOLD, YELLOW))
     print_prompt_and_response(with_memory_prompt, with_memory_response)
     wait_for_next_step()
@@ -308,11 +320,7 @@ def demo() -> None:
         extra_rules=["Hold dig inden for token-budgettet", "Prioriter kun den mest relevante kontekst"],
         max_sentences=3,
     )
-    budget_response = mock_llm(
-        budget_prompt,
-        budget_after_parts["question"],
-        trimmed_context,
-    )
+    budget_response = call_openai(client, budget_prompt)
     print_prompt_and_response(budget_prompt, budget_response)
     wait_for_next_step()
 
@@ -332,7 +340,7 @@ def demo() -> None:
             '"anvendelse_i_rag", "noegleord", "sources".'
         ),
     )
-    controlled_response = mock_llm(controlled_prompt, json_question, json_context)
+    controlled_response = pretty_json_if_possible(call_openai_json(client, controlled_prompt))
     print_prompt_and_response(controlled_prompt, controlled_response)
 
 

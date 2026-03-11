@@ -30,3 +30,14 @@ def print_section(title: str) -> None:
 
 def print_label(label: str, color: str) -> None:
     print(f"\n{colorize(label, BOLD, color)}\n")
+
+
+def clear_screen() -> None:
+    if not sys.stdout.isatty():
+        return
+    print("\033[2J\033[H", end="", flush=True)
+
+
+def prompt_to_continue(message: str) -> None:
+    input(colorize(f"\n{message}", BOLD, YELLOW) + " ")
+    clear_screen()

@@ -342,6 +342,18 @@ def _apply_char_overlap(segments: list[str], overlap_chars: int) -> list[str]:
     for seg in segments:
         if prev:
             prefix = prev[-overlap_chars:]
+            start_idx = max(0, len(prev) - overlap_chars)
+
+            # Avoid starting the next chunk in the middle of a word.
+            if (
+                start_idx > 0
+                and start_idx < len(prev)
+                and prev[start_idx - 1].isalnum()
+                and prev[start_idx].isalnum()
+            ):
+                match = re.search(r"\s+", prefix)
+                prefix = prefix[match.end() :] if match else ""
+
             out.append((prefix + " " + seg).strip())
         else:
             out.append(seg)

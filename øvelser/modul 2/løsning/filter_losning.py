@@ -3,7 +3,13 @@ from __future__ import annotations
 import re
 from difflib import SequenceMatcher
 from pathlib import Path
-from terminal_ui import GREEN, RED, YELLOW, colorize, print_label, print_section
+import sys
+
+ROOT_DIR = Path(__file__).resolve().parents[3]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from tools.terminal_ui import GREEN, RED, YELLOW, colorize, print_label, print_section
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "test_dokumenter"
 ALLOWED_EXTENSIONS = {".md", ".txt"}

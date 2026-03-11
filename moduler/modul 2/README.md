@@ -2,14 +2,14 @@
 
 Denne mappe indeholder demoer og smaae eksempler til modul 2.
 
-## RAG-demo uden aegte LLM
+## RAG-demo med OpenAI og lokal retrieval
 
-Filen `rag_simuleret_demo.py` viser forskellen mellem:
+Filen `rag_openai_demo.py` viser forskellen mellem:
 
 - en prompt uden RAG
-- den samme prompt med simuleret RAG
+- den samme prompt med lokal, simuleret RAG
 
-RAG-delen er simuleret med lokal data direkte i appen. Der bruges ingen rigtig model, ingen embeddings og ingen vector database.
+RAG-delen er simuleret med lokal data direkte i appen. Der bruges en rigtig OpenAI-model til selve svaret, men ingen embeddings og ingen vector database.
 
 Formaalet er at vise den didaktiske pointe:
 
@@ -19,5 +19,5 @@ Formaalet er at vise den didaktiske pointe:
 Koer demoen med:
 
 ```bash
-python "moduler/modul 2/rag_simuleret_demo.py"
+python "moduler/modul 2/rag_openai_demo.py"
 ```
