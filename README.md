@@ -134,6 +134,64 @@ For `demo_real` / `demo_full`:
 
 - OpenAI API-key i miljøvariabler eller `.env`
 
+## Start Docker-services fra repo-roden
+
+Root `docker-compose.yml` starter nu:
+
+- Qdrant
+- n8n
+
+### Bash
+
+```bash
+docker compose up -d
+docker compose ps
+```
+
+### PowerShell
+
+```powershell
+docker compose up -d
+docker compose ps
+```
+
+Services vil typisk være tilgængelige på:
+
+- Qdrant: `http://localhost:6333`
+- n8n: `http://localhost:5678`
+
+`n8n` får også repoet mountet read-only som `/files` inde i containeren. Det bruges af workflows, der skal læse lokale filer fra disk, fx:
+
+- `/files/demoer/modul 3/data/*.md`
+
+`n8n` er også sat op med `N8N_RESTRICT_FILE_ACCESS_TO=/files`, så `Read/Write Files from Disk` må læse fra den mountede repo-mappe.
+
+For webhook- og chat-baserede workflows er `n8n` sat op med:
+
+- `N8N_HOST=localhost`
+- `WEBHOOK_URL=http://localhost:5678/`
+
+Hvis du ændrer disse værdier i `docker-compose.yml`, så genstart containerne:
+
+```powershell
+docker compose down
+docker compose up -d
+```
+
+For at stoppe dem igen:
+
+### Bash
+
+```bash
+docker compose down
+```
+
+### PowerShell
+
+```powershell
+docker compose down
+```
+
 ## Setup af Python virtual environment (venv)
 
 Fra repo-roden:
@@ -174,7 +232,7 @@ OPENAI_API_KEY=...
 OPENAI_MODEL=gpt-4.1-mini
 OPENAI_EMBED_MODEL=text-embedding-3-small
 QDRANT_URL=http://localhost:6333
-QDRANT_COLLECTION=pdf_demo
+QDRANT_COLLECTION=rag_data
 EMBEDDING_MODEL=text-embedding-3-small
 CHAT_MODEL=gpt-4o-mini
 ```
@@ -186,7 +244,7 @@ $env:OPENAI_API_KEY="..."
 $env:OPENAI_MODEL="gpt-4.1-mini"
 $env:OPENAI_EMBED_MODEL="text-embedding-3-small"
 $env:QDRANT_URL="http://localhost:6333"
-$env:QDRANT_COLLECTION="pdf_demo"
+$env:QDRANT_COLLECTION="rag_data"
 $env:EMBEDDING_MODEL="text-embedding-3-small"
 $env:CHAT_MODEL="gpt-4o-mini"
 ```
