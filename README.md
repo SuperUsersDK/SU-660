@@ -141,6 +141,11 @@ Root `docker-compose.yml` starter nu:
 - Qdrant
 - n8n
 
+Begge services bruger Docker named volumes til persistens:
+
+- `qdrant_storage`
+- `n8n_data`
+
 ### Bash
 
 ```bash
@@ -190,6 +195,12 @@ docker compose down
 
 ```powershell
 docker compose down
+```
+
+Hvis du vil nulstille data helt, kan du også fjerne volumes:
+
+```powershell
+docker compose down -v
 ```
 
 ## Setup af Python virtual environment (venv)
