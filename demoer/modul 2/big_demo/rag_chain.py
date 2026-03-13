@@ -20,12 +20,8 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 
-try:
-    from app.settings import SETTINGS
-    from app.tools import calculator, doc_stats, search_in_context
-except ModuleNotFoundError:
-    from settings import SETTINGS
-    from tools import calculator, doc_stats, search_in_context
+from settings import SETTINGS
+from tools import calculator, doc_stats, search_in_context
 
 
 def build_vs() -> QdrantVectorStore:

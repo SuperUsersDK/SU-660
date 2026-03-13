@@ -25,7 +25,9 @@ from langchain_text_splitters import Language, MarkdownHeaderTextSplitter, Recur
 from qdrant_client import QdrantClient, models as qdrant_models
 
 SETTINGS = None
-_REPO_ROOT_DIR = Path(__file__).resolve().parents[4]
+APP_DIR = Path(__file__).resolve().parent
+_REPO_ROOT_DIR = Path(__file__).resolve().parents[3]
+DEFAULT_DOCUMENT_DIR = APP_DIR / "data"
 
 if str(_REPO_ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT_DIR))
@@ -46,10 +48,7 @@ def _get_settings():
     load_dotenv(_REPO_ROOT_DIR / ".env", override=True)
     if SETTINGS is not None:
         return SETTINGS
-    try:
-        from app.settings import SETTINGS as loaded_settings
-    except ModuleNotFoundError:
-        from settings import SETTINGS as loaded_settings
+    from settings import SETTINGS as loaded_settings
     SETTINGS = loaded_settings
     return SETTINGS
 
@@ -78,6 +77,8 @@ def load_text_file(file_path: str) -> list[Document]:
 
 def iter_document_paths(document_dir: str) -> list[Path]:
     base_dir = Path(document_dir)
+    if not base_dir.is_absolute():
+        base_dir = APP_DIR / base_dir
     pdf_paths = sorted(base_dir.glob("*.pdf"))
     markdown_paths = sorted(base_dir.glob("*.md"))
     python_paths = sorted(base_dir.glob("*.py"))
@@ -243,7 +244,7 @@ def build_vector_store(
     )
 
 
-def main(document_dir: str = "data", force: bool = False) -> None:
+def main(document_dir: str = str(DEFAULT_DOCUMENT_DIR), force: bool = False) -> None:
     settings = _get_settings()
     collection_name = settings.collection_name
 
@@ -361,13 +362,13 @@ def main(document_dir: str = "data", force: bool = False) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Ingest PDF/TXT files into Qdrant")
+    parser = argparse.ArgumentParser(description="Ingest PDF/Markdown/code files into Qdrant")
     parser.add_argument(
         "--document-dir",
         "--pdf-dir",
         dest="document_dir",
-        default="data",
-        help="Directory containing PDF/TXT files",
+        default=str(DEFAULT_DOCUMENT_DIR),
+        help="Directory containing .pdf, .md, .py and .cs files",
     )
     parser.add_argument(
         "--force",

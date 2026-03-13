@@ -7,7 +7,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 
-_REPO_ROOT_DIR = Path(__file__).resolve().parents[4]
+_REPO_ROOT_DIR = Path(__file__).resolve().parents[3]
 
 # Load the single supported .env file from the git repo root.
 load_dotenv(_REPO_ROOT_DIR / ".env", override=True)

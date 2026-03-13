@@ -31,8 +31,9 @@ def get_qdrant_url() -> str:
     return os.getenv("QDRANT_URL", "http://localhost:6333")
 
 
-def get_qdrant_api_key() -> str:
-    return os.getenv("QDRANT_API_KEY", "")
+def get_qdrant_api_key() -> str | None:
+    api_key = os.getenv("QDRANT_API_KEY", "").strip()
+    return api_key or None
 
 
 def file_id(path: Path) -> str:
@@ -90,9 +91,10 @@ def main() -> None:
     if not image_paths:
         raise RuntimeError(f"Ingen .jpg/.jpeg billeder fundet i {DATA_DIR}")
 
+    qdrant_api_key = get_qdrant_api_key()
     client = QdrantClient(
         url=get_qdrant_url(),
-        api_key=get_qdrant_api_key() or None,
+        api_key=qdrant_api_key,
     )
 
     points_batch: list[qdrant_models.PointStruct] = []
@@ -104,6 +106,7 @@ def main() -> None:
     print_label("KONFIGURATION", CYAN)
     print(colorize(f"Data mappe: {DATA_DIR}", DIM))
     print(colorize(f"Qdrant URL: {get_qdrant_url()}", DIM))
+    print(colorize(f"Qdrant API key: {'ja' if qdrant_api_key else 'nej'}", DIM))
     print(colorize(f"Collection: {COLLECTION_NAME}", DIM))
     print(colorize(f"Image model: {get_image_embed_model()}", DIM))
     print(colorize(f"Batch size:  {BATCH_SIZE}", DIM))

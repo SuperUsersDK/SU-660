@@ -1,0 +1,14 @@
+Doc1
+Embeddings repræsenterer tekst som numeriske vektorer.
+
+Doc2
+Chunking opdeler dokumenter i mindre tekststykker,
+så de kan indekseres i en vector database.
+
+Doc3
+Vector databaser bruges til at gemme embeddings
+og finde lignende tekst via similarity search.
+
+Doc4
+RAG kombinerer retrieval og generation
+så en LLM kan bruge eksterne dokumenter.

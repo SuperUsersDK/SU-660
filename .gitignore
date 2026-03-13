@@ -11,6 +11,7 @@ demo_full/qdrant_storage/**
 !demo_full/qdrant_storage/.gitkeep
 n8n_data/
 qdrant_storage/
+demoer/modul 3/photos/data/
 # Single local environment file in repo root only
 .env
 .docker-compose.yml.swp

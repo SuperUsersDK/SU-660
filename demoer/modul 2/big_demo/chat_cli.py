@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-try:
-    from app.rag_chain import agent_answer, format_retrieval_score_lines
-except ModuleNotFoundError:
-    from rag_chain import agent_answer, format_retrieval_score_lines
+from rag_chain import agent_answer, format_retrieval_score_lines
 
 
 def main() -> None:
