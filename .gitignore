@@ -13,3 +13,4 @@ n8n_data/
 qdrant_storage/
 # Single local environment file in repo root only
 .env
+.docker-compose.yml.swp

@@ -1,0 +1,338 @@
+{
+  "name": "Modul 3 - AI Research Assistant",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## AI Research Assistant\nDette demo bygger oven på RAG-labbet. Workflowet tager et spørgsmål, henter et internt svar fra Qdrant, slår derefter op på webben og samler det i ét svar.\n\nKør først ingest fra `Klassisk RAG Pipeline.json`, så collectionen `modul3_demo` findes.",
+        "height": 260,
+        "width": 460,
+        "color": 6
+      },
+      "id": "aa553eda-98d2-4906-a70b-53af6406dad5",
+      "name": "Sticky Note Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Flow\nUser question -> Internal RAG -> Web Search -> Final synthesis\n\nDet er agent-lignende, fordi workflowet kombinerer flere kilder og leverer ét samlet svar.",
+        "height": 180,
+        "width": 380,
+        "color": 7
+      },
+      "id": "29632633-09e5-4adc-b8c0-74af48b0701d",
+      "name": "Sticky Note Flow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "public": false,
+        "options": {
+          "responseMode": "lastNode",
+          "title": "AI Research Assistant",
+          "subtitle": "Interne dokumenter + webopslag",
+          "inputPlaceholder": "Spørg fx: Hvad siger vores dokumenter om AI pipelines, og hvad er de nyeste trends?"
+        }
+      },
+      "id": "20060c4c-9827-479f-b385-e095e84dba1f",
+      "name": "Chat Trigger",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -640,
+        40
+      ],
+      "webhookId": "170dd3f4-27eb-4158-af5c-1f63f90b72cf"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Svar kun ud fra vores interne dokumenter.\n\nSpørgsmål:\n{{ $json.chatInput }}",
+        "options": {
+          "systemPromptTemplate": "Du er en intern RAG-assistent. Brug kun den retrievede kontekst fra vores egne dokumenter. Hvis svaret ikke findes i dokumenterne, så sig det tydeligt.\n----------------\nContext: {context}"
+        }
+      },
+      "id": "73dc9a1b-d91f-4f8b-a5ef-b0e92fd5d4ed",
+      "name": "Internal RAG Answer",
+      "type": "@n8n/n8n-nodes-langchain.chainRetrievalQa",
+      "typeVersion": 1.6,
+      "position": [
+        -360,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini",
+          "cachedResultName": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "id": "6754f756-c55a-4b31-a486-993b76cf1cd8",
+      "name": "OpenAI Chat Model RAG",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -360,
+        216
+      ]
+    },
+    {
+      "parameters": {
+        "topK": 3
+      },
+      "id": "8399c416-997b-4440-8d79-635b164f4200",
+      "name": "Vector Store Retriever",
+      "type": "@n8n/n8n-nodes-langchain.retrieverVectorStore",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        216
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "63d0f639-0f42-45dd-9f1a-9e9a5456e55f",
+      "name": "Embeddings OpenAI Retrieve",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -100,
+        456
+      ]
+    },
+    {
+      "parameters": {
+        "qdrantCollection": {
+          "__rl": true,
+          "mode": "id",
+          "value": "modul3_demo"
+        },
+        "options": {}
+      },
+      "id": "b3098fb2-0f61-4b79-9e5d-0f668ea3ec15",
+      "name": "Qdrant Vector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.3,
+      "position": [
+        -100,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://en.wikipedia.org/w/api.php",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "action",
+              "value": "query"
+            },
+            {
+              "name": "format",
+              "value": "json"
+            },
+            {
+              "name": "list",
+              "value": "search"
+            },
+            {
+              "name": "utf8",
+              "value": "1"
+            },
+            {
+              "name": "srlimit",
+              "value": "3"
+            },
+            {
+              "name": "srsearch",
+              "value": "={{ $('Chat Trigger').first().json.chatInput }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b5aeb9f6-e61b-4dbf-b1a8-d8e44b486273",
+      "name": "Wikipedia Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        160,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const hits = $json.query?.search || [];\nconst webContext = hits.length\n  ? hits.map((hit, index) => `${index + 1}. ${hit.title}: ${String(hit.snippet || '').replace(/<[^>]+>/g, '')}`).join('\\n')\n  : 'Ingen webresultater fundet.';\n\nreturn [{ json: { webContext } }];"
+      },
+      "id": "82ff96f1-c75d-45a7-8b12-2012551e9b61",
+      "name": "Format Web Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Du er en research-assistent.\n\nBrugerens spørgsmål:\n{{ $('Chat Trigger').first().json.chatInput }}\n\nInternt svar fra vores dokumenter:\n{{ $('Internal RAG Answer').first().json.text || $('Internal RAG Answer').first().json.answer || 'Intet internt svar.' }}\n\nEksterne webfund:\n{{ $json.webContext }}\n\nSkriv et samlet svar i tre korte dele:\n1. Hvad siger vores dokumenter?\n2. Hvad siger de eksterne kilder?\n3. Kort samlet vurdering.\n\nHvis de to kilder er i konflikt, så sig det tydeligt.",
+        "options": {}
+      },
+      "id": "70fd9d4f-f4d6-4bdc-a012-34f1be2555fb",
+      "name": "Final Research Answer",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        700,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini",
+          "cachedResultName": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "id": "91bb2e9d-6b7d-46ba-a7d2-c58664e37af1",
+      "name": "OpenAI Chat Model Final",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        700,
+        216
+      ]
+    }
+  ],
+  "connections": {
+    "Chat Trigger": {
+      "main": [
+        [
+          {
+            "node": "Internal RAG Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Internal RAG Answer": {
+      "main": [
+        [
+          {
+            "node": "Wikipedia Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model RAG": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Internal RAG Answer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vector Store Retriever": {
+      "ai_retriever": [
+        [
+          {
+            "node": "Internal RAG Answer",
+            "type": "ai_retriever",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI Retrieve": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Vector Store": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "Vector Store Retriever",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wikipedia Search": {
+      "main": [
+        [
+          {
+            "node": "Format Web Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Web Results": {
+      "main": [
+        [
+          {
+            "node": "Final Research Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model Final": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Final Research Answer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "active": false
+}
