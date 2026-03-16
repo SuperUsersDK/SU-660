@@ -1,0 +1,378 @@
+{
+  "name": "Modul 3 - Klassisk RAG Pipeline (n8n recursive folder)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Ingest fra hel mappe\nDenne gren læser filer rekursivt fra `/files/demoer/modul 3/data/**/*.{md,txt,pdf}`.\nDerefter loader den dokumenterne, splitter dem i chunks, embedder dem og gemmer dem i Qdrant.",
+        "height": 220,
+        "width": 460,
+        "color": 6
+      },
+      "id": "9c8b9d8e-110f-4f7a-bb5f-e189a00d7018",
+      "name": "Sticky Note Ingest",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1392,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Chat over Qdrant\nDenne gren matcher den klassiske RAG-pipeline: question -> retrieve top_k=3 -> prompt -> LLM -> answer.",
+        "height": 190,
+        "width": 420,
+        "color": 7
+      },
+      "id": "d82612b0-75db-42ac-8306-01aa7c8d0b96",
+      "name": "Sticky Note Chat",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2720,
+        544
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "1c474593-8644-428a-8ce3-3c1bba774679",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        1472,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/demoer/modul 3/data/**/*.{md,txt,pdf}",
+        "options": {}
+      },
+      "id": "d15a4985-9db2-42bb-8417-ce49adda2952",
+      "name": "Read Knowledge Base Files",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1712,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "binary",
+        "textSplittingMode": "custom",
+        "options": {}
+      },
+      "id": "f858e379-b43f-44ed-8451-670edcb7c170",
+      "name": "Default Data Loader",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        2400,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "chunkSize": 500,
+        "chunkOverlap": 80,
+        "options": {}
+      },
+      "id": "a31fa9dc-2f52-44c1-a1d1-95902443c580",
+      "name": "Recursive Character Text Splitter",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        2480,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "qdrantCollection": {
+          "__rl": true,
+          "mode": "id",
+          "value": "modul3_demo"
+        },
+        "embeddingBatchSize": 50,
+        "options": {
+          "collectionConfig": "{\n  \"vectors\": {\n    \"size\": 1536,\n    \"distance\": \"Cosine\"\n  }\n}"
+        }
+      },
+      "id": "d80766c4-2590-4034-90c9-82b47699a2e0",
+      "name": "Qdrant Vector Store Insert",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.1,
+      "position": [
+        2240,
+        816
+      ],
+      "credentials": {
+        "qdrantApi": {
+          "id": "7DM9a8BbthglHIdN",
+          "name": "QdrantApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "4e5ae3b3-5861-4dcd-b693-ded225e524ea",
+      "name": "Embeddings OpenAI Insert",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        2160,
+        1040
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "bUsx2ISV0Snr1CNY",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "04052e32-d4ba-47dc-8191-feac791820a1",
+      "name": "Chat Trigger",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        2800,
+        816
+      ],
+      "webhookId": "f291a151-6fb8-4efd-8fbe-526f9bb46276"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Du er en hjælpsom RAG-assistent. Svar kun ud fra konteksten. Hvis svaret ikke findes i konteksten, så sig det tydeligt.\n\nSpørgsmål:\n{{ $json.chatInput }}",
+        "options": {
+          "systemPromptTemplate": "You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question.\nIf you don't know the answer, just say that you don't know, don't try to make up an answer.\n----------------\nContext: {context}"
+        }
+      },
+      "id": "f6cf77b4-751a-4b6c-8a39-b3444c19e609",
+      "name": "Question and Answer Chain",
+      "type": "@n8n/n8n-nodes-langchain.chainRetrievalQa",
+      "typeVersion": 1.6,
+      "position": [
+        3056,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini",
+          "cachedResultName": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "id": "f864bb5e-9e40-43fd-8357-dcb950706dae",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        3056,
+        992
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "bUsx2ISV0Snr1CNY",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "topK": 3
+      },
+      "id": "bd18cc36-7be5-48cc-8f03-3aa99e24237a",
+      "name": "Vector Store Retriever",
+      "type": "@n8n/n8n-nodes-langchain.retrieverVectorStore",
+      "typeVersion": 1,
+      "position": [
+        3312,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "e4a389dc-2924-4194-a776-5e803261b34f",
+      "name": "Embeddings OpenAI Retrieve",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        3312,
+        1344
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "bUsx2ISV0Snr1CNY",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "modul3_demo",
+          "mode": "list",
+          "cachedResultName": "modul3_demo"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.3,
+      "position": [
+        3392,
+        1120
+      ],
+      "id": "4a470fca-814e-4263-a16e-abae8ec0de61",
+      "name": "Qdrant Vector Store",
+      "credentials": {
+        "qdrantApi": {
+          "id": "7DM9a8BbthglHIdN",
+          "name": "QdrantApi account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Knowledge Base Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Knowledge Base Files": {
+      "main": [
+        [
+          {
+            "node": "Qdrant Vector Store Insert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Qdrant Vector Store Insert",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI Insert": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store Insert",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat Trigger": {
+      "main": [
+        [
+          {
+            "node": "Question and Answer Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Question and Answer Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vector Store Retriever": {
+      "ai_retriever": [
+        [
+          {
+            "node": "Question and Answer Chain",
+            "type": "ai_retriever",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI Retrieve": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Vector Store": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "Vector Store Retriever",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "ed7377bf-6e2b-4528-8692-4af85a52255d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "706e0f2cf1bdca10de11722eacb056c34b009c297afdad00681acf1479e5042a"
+  },
+  "id": "cyFiNRLJy5YiJVou",
+  "tags": []
+}
