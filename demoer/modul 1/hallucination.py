@@ -20,6 +20,15 @@ def load_root_env() -> None:
     load_dotenv(ROOT_DIR / ".env", override=True)
 
 
+def print_prompt(system_prompt: str, user_prompt: str) -> None:
+    print_label("PROMPT", BLUE)
+    print(colorize("System:", YELLOW))
+    print(system_prompt)
+    print()
+    print(colorize("User:", YELLOW))
+    print(user_prompt)
+
+
 def main() -> None:
     clear_screen()
     load_root_env()
@@ -30,12 +39,17 @@ def main() -> None:
 
     client = OpenAI(api_key=api_key)
     question = "Hvad er hovedresultaterne i Anders Moellers artikel fra 2019 'Quantum Governance in Nordic Municipalities'?"
+    naive_system_prompt = (
+        "Du er en hjaelpsom assistent. Svar kort, klart og konkret paa dansk. "
+        "Giv gerne specifikke detaljer, hvis det er relevant."
+    )
 
     print_section("Hallucination Demo 1")
     print_label("MODEL", YELLOW)
     print(colorize(MODEL, DIM))
     print_label("SPOERGSMAAL", BLUE)
     print(colorize(question, DIM))
+    print_prompt(naive_system_prompt, question)
 
     naive_response = client.chat.completions.create(
         model=MODEL,
@@ -43,10 +57,7 @@ def main() -> None:
         messages=[
             {
                 "role": "system",
-                "content": (
-                    "Du er en hjaelpsom assistent. Svar kort, klart og konkret paa dansk. "
-                    "Giv gerne specifikke detaljer, hvis det er relevant."
-                ),
+                "content": naive_system_prompt,
             },
             {
                 "role": "user",
@@ -67,6 +78,11 @@ def main() -> None:
     print(colorize(MODEL, DIM))
     print_label("SPOERGSMAAL", BLUE)
     print(colorize(question, DIM))
+    careful_system_prompt = (
+        "Du er en forsigtig assistent. Hvis du ikke er sikker paa, at en standard findes "
+        "eller hvad den indeholder, saa sig tydeligt at du er usikker og undgaa at opfinde detaljer."
+    )
+    print_prompt(careful_system_prompt, question)
 
     careful_response = client.chat.completions.create(
         model=MODEL,
@@ -74,10 +90,7 @@ def main() -> None:
         messages=[
             {
                 "role": "system",
-                "content": (
-                    "Du er en forsigtig assistent. Hvis du ikke er sikker paa, at en standard findes "
-                    "eller hvad den indeholder, saa sig tydeligt at du er usikker og undgaa at opfinde detaljer."
-                ),
+                "content": careful_system_prompt,
             },
             {
                 "role": "user",

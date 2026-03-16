@@ -57,6 +57,16 @@ def filter_documents(docs: list[dict] | None) -> list[dict]:
 def main() -> None:
     filtered_docs = filter_documents(documents)
     print_section("Filter 3 - Metadata")
+    print(
+        colorize(
+            "Dette filter viser, hvordan man kun beholder dokumenter med den rigtige metadata, fx sprog, status og afdeling.",
+            YELLOW,
+        )
+    )
+    print_label("FILTERKRAV", YELLOW)
+    print(colorize("- language = 'da'", YELLOW))
+    print(colorize("- status = 'approved'", YELLOW))
+    print(colorize("- department = 'ai'", YELLOW))
 
     if not filtered_docs:
         print(colorize("Ingen dokumenter matchede metadata-filteret.", BOLD, YELLOW))

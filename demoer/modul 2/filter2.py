@@ -50,6 +50,12 @@ def main() -> None:
     ]
 
     print_section("Filter 2 - Brugbar tekst")
+    print(
+        colorize(
+            "Dette filter viser, om en tekst er lang nok og ser fagligt brugbar ud, eller om den ligner tom tekst eller stoej.",
+            CYAN,
+        )
+    )
     print_label("RESULTATER", CYAN)
     for text in examples:
         result = is_useful_text(text)

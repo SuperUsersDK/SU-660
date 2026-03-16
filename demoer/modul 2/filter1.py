@@ -37,6 +37,8 @@ def find_documents(base_path: str | Path, required_folder: str | None = ALLOWED_
 def main() -> None:
     docs = find_documents(DEFAULT_DATA_DIR)
     print_section("Filter 1 - Find dokumenter")
+    print_label("FILTYPER", CYAN)
+    print(colorize(f"Tilladte filtyper: {sorted(ALLOWED_EXTENSIONS)}", CYAN))
 
     if not docs:
         fallback_docs = find_documents(DEFAULT_DATA_DIR, required_folder=None)

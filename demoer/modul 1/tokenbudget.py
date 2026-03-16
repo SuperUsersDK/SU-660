@@ -36,6 +36,12 @@ def print_budget(title: str, parts: dict[str, str]) -> None:
     else:
         print(colorize("Status: Inden for budget", GREEN))
 
+    print_label("PROMPT", BLUE)
+    for name, text in parts.items():
+        print()
+        print(colorize(f"{name}:", GREEN))
+        print(text)
+
 
 def main() -> None:
     clear_screen()
