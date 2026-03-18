@@ -1,6 +1,14 @@
 from __future__ import annotations
 
 from rag_chain import format_retrieval_score_lines, rag_answer
+import sys
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parents[3]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from tools.terminal_ui import YELLOW, colorize
 
 
 def main() -> None:
@@ -27,7 +35,7 @@ def main() -> None:
             print(line)
 
         answer = rag_answer(question)
-        print("\n" + answer)
+        print("\n" + colorize(answer, YELLOW))
 
 
 if __name__ == "__main__":

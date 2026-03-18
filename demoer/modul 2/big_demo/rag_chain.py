@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import re
 import sys
 import warnings
+from pathlib import Path
+from typing import Any
 
 if sys.version_info >= (3, 14):
     warnings.filterwarnings(
@@ -16,7 +19,12 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 
+ROOT_DIR = Path(__file__).resolve().parents[3]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 from settings import SETTINGS
+from tools.terminal_ui import BLUE, BOLD, GREEN, RED, colorize
 
 
 def build_vs() -> QdrantVectorStore:
@@ -45,6 +53,20 @@ def build_context(docs: list[Document]) -> str:
     for doc in docs:
         parts.append(f"{_doc_citation(doc)}\n{doc.page_content}")
     return "\n\n".join(parts)
+
+
+def colorize_sources(text: str) -> str:
+    return re.sub(
+        r"\[source=[^\]]+\]",
+        lambda match: colorize(match.group(0), BOLD, RED),
+        text,
+    )
+
+
+def format_prompt_message(message_type: str, content: str) -> str:
+    if message_type == "system":
+        return colorize(content, BLUE)
+    return colorize_sources(colorize(content, GREEN))
 
 
 def retrieval_hits_with_scores(question: str, k: int = 8) -> list[tuple[Document, float]]:
@@ -77,7 +99,7 @@ def rag_answer(question: str, k: int = 8) -> str:
     for message in rendered_messages:
         message_type = getattr(message, "type", message.__class__.__name__)
         print(f"[{message_type.upper()}]")
-        print(message.content)
+        print(format_prompt_message(message_type, message.content))
         print()
 
     response = (prompt | model).invoke({"q": question, "ctx": context})
