@@ -21,6 +21,8 @@ def chunk_fixed_size(text: str, *, chunk_tokens: int, overlap_tokens: int = 0) -
     # 2. Gå gennem tokens i vinduer på chunk_tokens.
     # 3. Brug overlap_tokens til at lade nabo-chunks dele noget tekst.
     # 4. Dekod hver token-blok tilbage til tekst og tilføj den til chunks.
+
+    # En anden mulighed er at arbejde direkte med tekst og splitte per x characterer (nemmere at debugger)
     return []
 
 
