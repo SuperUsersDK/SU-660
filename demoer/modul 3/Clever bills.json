@@ -1,0 +1,654 @@
+{
+  "name": "Clever bills",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        800,
+        -48
+      ],
+      "id": "e7fe4951-32f9-4293-8471-474710fda5c7",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "path": "={{ $('Dropbox1').item.json.pathLower }}"
+      },
+      "type": "n8n-nodes-base.dropbox",
+      "typeVersion": 1,
+      "position": [
+        640,
+        -48
+      ],
+      "id": "e3fb3b8c-99f4-4717-8041-6a1ba1fd72a1",
+      "name": "Dropbox",
+      "credentials": {
+        "dropboxApi": {
+          "id": "EnP4nJ0hO7zjWkaR",
+          "name": "Dropbox account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -288,
+        320
+      ],
+      "id": "7ace28a9-ad65-46aa-812c-a2bebd964bc3",
+      "name": "When clicking ‘Test workflow’"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1hIQMBXBRsu8L5MljmG4x2kwa8WIMiTfzKw9ojrB6TMk",
+          "mode": "list",
+          "cachedResultName": "Clever Invoice",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1hIQMBXBRsu8L5MljmG4x2kwa8WIMiTfzKw9ojrB6TMk/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1hIQMBXBRsu8L5MljmG4x2kwa8WIMiTfzKw9ojrB6TMk/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "totalElRegning": "={{ $json.totalElRegning }}",
+            "totalAfgift": "={{ $json.totalAfgift }}",
+            "totalPris": "={{ $json.totalPris }}",
+            "startDate": "={{ $json.startDate }}",
+            "EndDate": "={{ $json.endDate }}"
+          },
+          "matchingColumns": [
+            "startDate"
+          ],
+          "schema": [
+            {
+              "id": "startDate",
+              "displayName": "startDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "EndDate",
+              "displayName": "EndDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "totalElRegning",
+              "displayName": "totalElRegning",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "totalAfgift",
+              "displayName": "totalAfgift",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "totalPris",
+              "displayName": "totalPris",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1120,
+        -48
+      ],
+      "id": "aa069eda-9ef0-4d54-9e23-bcf91b4d4701",
+      "name": "Google Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "iIxLUecRU6KNGlOW",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $json[\"text\"]; // replace with your actual field name\n\nconst totalElRegning = text.match(/Total\\s+(\\d{1,3}(?:\\.\\d{3})*,\\d{2})(?!\\s*inkl)/);\nconst totalAfgift = text.match(/Total\\s+(-\\d{1,3}(?:\\.\\d{3})*,\\d{2})/);\nconst totalPris = text.match(/Total inkl\\. moms Kr\\.?\\s+(\\d{1,3}(?:\\.\\d{3})*,\\d{2})/);\nconst dateRange = text.match(/(\\d{2}\\.\\d{2}\\.\\d{2})\\s+til\\s+(\\d{2}\\.\\d{2}\\.\\d{2})/);\n\nreturn [\n  {\n    json: {\n      totalElRegning: totalElRegning ? totalElRegning[1] : null,\n      totalAfgift: totalAfgift ? totalAfgift[1] : null,\n      totalPris: totalPris ? totalPris[1] : null,\n      startDate: dateRange ? dateRange[1] : null,\n      endDate: dateRange ? dateRange[2] : null\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -48
+      ],
+      "id": "5d704d93-df2a-4a1f-b7e0-ecd590b68383",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "operation": "list",
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.dropbox",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        -224
+      ],
+      "id": "9a4c401c-15e7-4dd7-b70c-f00edfe46e39",
+      "name": "Dropbox1",
+      "credentials": {
+        "dropboxApi": {
+          "id": "EnP4nJ0hO7zjWkaR",
+          "name": "Dropbox account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        464,
+        -144
+      ],
+      "id": "67ffe4c5-134e-4dcb-8e01-b1bbd1288217",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "sortFieldsUi": {
+          "sortField": [
+            {
+              "fieldName": "name"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.sort",
+      "typeVersion": 1,
+      "position": [
+        160,
+        -224
+      ],
+      "id": "34d98d9e-d754-480b-ba93-fc39b1b47169",
+      "name": "Sort"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "filters": {
+          "sender": "power@clever.dk"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -64,
+        320
+      ],
+      "id": "595d7f1f-7d3f-4d7e-8ae7-427d26cc8b98",
+      "name": "Gmail",
+      "webhookId": "8d55ef06-9aee-4f50-8421-3491be0e6909",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Jt850klrFzipF9Zr",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        544,
+        320
+      ],
+      "id": "0194b381-58f5-4878-8c19-48f884726ab5",
+      "name": "Loop Over Items1"
+    },
+    {
+      "parameters": {
+        "sortFieldsUi": {
+          "sortField": [
+            {
+              "fieldName": "internalDate"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.sort",
+      "typeVersion": 1,
+      "position": [
+        320,
+        320
+      ],
+      "id": "adc7cf71-c1b5-4ca7-a465-71ae75ee2c59",
+      "name": "Sort1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "00fcf69a-76b7-48e7-890a-818b3db6daec",
+              "leftValue": "={{ $json.snippet }}",
+              "rightValue": "Din elregning fra Clever",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        128,
+        320
+      ],
+      "id": "4ff1ae63-3498-4984-a5f3-5bb69ecc3197",
+      "name": "Filter"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "=attachment",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1232,
+        352
+      ],
+      "id": "9883c93d-03a0-407f-be11-24d833f87f7a",
+      "name": "Extract from File1"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        784,
+        352
+      ],
+      "id": "e8caa136-5bed-4966-84cf-a65ffedf5ed9",
+      "name": "Gmail1",
+      "webhookId": "8d55ef06-9aee-4f50-8421-3491be0e6909",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Jt850klrFzipF9Zr",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1hIQMBXBRsu8L5MljmG4x2kwa8WIMiTfzKw9ojrB6TMk",
+          "mode": "list",
+          "cachedResultName": "Clever Invoice",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1hIQMBXBRsu8L5MljmG4x2kwa8WIMiTfzKw9ojrB6TMk/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1hIQMBXBRsu8L5MljmG4x2kwa8WIMiTfzKw9ojrB6TMk/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "totalElRegning": "={{ $json.totalElRegning }}",
+            "totalAfgift": "={{ $json.totalAfgift }}",
+            "totalPris": "={{ $json.totalPris }}",
+            "startDate": "={{ $json.startDate }}",
+            "EndDate": "={{ $json.endDate }}"
+          },
+          "matchingColumns": [
+            "startDate"
+          ],
+          "schema": [
+            {
+              "id": "startDate",
+              "displayName": "startDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "EndDate",
+              "displayName": "EndDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "totalElRegning",
+              "displayName": "totalElRegning",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "totalAfgift",
+              "displayName": "totalAfgift",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "totalPris",
+              "displayName": "totalPris",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1664,
+        352
+      ],
+      "id": "d0401e6f-1e96-455d-98f9-b6967afa5bec",
+      "name": "Google Sheets1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "iIxLUecRU6KNGlOW",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\n\nfor (const item of items) {\n    if (!item.binary) {\n        continue;\n    }\n\n    for (const key in item.binary) {\n        const binaryData = item.binary[key];\n\n        const isPdf = (\n            binaryData.mimeType === 'application/pdf' ||\n            binaryData.fileName?.toLowerCase().endsWith('.pdf')\n        );\n\n        if (isPdf) {\n            results.push({\n                json: item.json,\n                binary: {\n                    attachment: binaryData\n                }\n            });\n        }\n    }\n}\n\nreturn results;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1008,
+        352
+      ],
+      "id": "52b32bba-1c06-4e0e-80ba-625b71dfd3e7",
+      "name": "Retrieve PDF attachment"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $json[\"text\"]; // Replace with your actual field name\n\nconst extractNumber = (match) => {\n  if (!match) return null;\n  return parseFloat(match.replace(/\\./g, \"\").replace(\",\", \".\"));\n};\n\nconst totalElRegningMatch = text.match(/Total\\s+(\\d{1,3}(?:\\.\\d{3})*,\\d{2})(?!\\s*inkl)/);\nconst totalPrisMatch = text.match(/Total inkl\\. moms Kr\\.?\\s+(\\d{1,3}(?:\\.\\d{3})*,\\d{2})/);\nconst dateRange = text.match(/(\\d{2}\\.\\d{2}\\.\\d{2})\\s+til\\s+(\\d{2}\\.\\d{2}\\.\\d{2})/);\n\n// Find refund or second Total\nconst refundMatch = text.match(/Tilbagebetaling i alt\\s+(-?\\d{1,3}(?:\\.\\d{3})*,\\d{2})/);\nconst totalMatches = [...text.matchAll(/Total\\s+(-?\\d{1,3}(?:\\.\\d{3})*,\\d{2})(?!\\s*inkl)/g)];\nconst secondTotal = totalMatches.length >= 2 ? totalMatches[1][1] : null;\n\n// Pick refund or second total, and make it positive number\nlet totalAfgiftRaw = refundMatch ? refundMatch[1] : secondTotal || null;\nlet totalAfgift = totalAfgiftRaw\n  ? Math.abs(extractNumber(totalAfgiftRaw))\n  : null;\n\nreturn [\n  {\n    json: {\n      totalElRegning: totalElRegningMatch ? extractNumber(totalElRegningMatch[1]) : null,\n      totalAfgift: totalAfgift,\n      totalPris: totalPrisMatch ? extractNumber(totalPrisMatch[1]) : null,\n      startDate: dateRange ? dateRange[1] : null,\n      endDate: dateRange ? dateRange[2] : null\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        352
+      ],
+      "id": "8d1f39cc-d949-4254-906b-fce4bc95a626",
+      "name": "Get Fields"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Dropbox": {
+      "main": [
+        []
+      ]
+    },
+    "When clicking ‘Test workflow’": {
+      "main": [
+        [
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        []
+      ]
+    },
+    "Code": {
+      "main": [
+        []
+      ]
+    },
+    "Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dropbox1": {
+      "main": [
+        []
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Dropbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sort": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail": {
+      "main": [
+        [
+          {
+            "node": "Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sort1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Gmail1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter": {
+      "main": [
+        [
+          {
+            "node": "Sort1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail1": {
+      "main": [
+        [
+          {
+            "node": "Retrieve PDF attachment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File1": {
+      "main": [
+        [
+          {
+            "node": "Get Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve PDF attachment": {
+      "main": [
+        [
+          {
+            "node": "Extract from File1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Fields": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "fb911cd9-8a75-4a2d-a18b-ca37054bc7aa",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c1596a0844cf2453909a4ca979944c6b39d472d878a5499e2b118c16dc5f30f6"
+  },
+  "id": "Rgg1VoRbzqgUsXS0",
+  "tags": []
+}

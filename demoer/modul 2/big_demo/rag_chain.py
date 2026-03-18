@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from functools import lru_cache
 import sys
-from typing import Any
 import warnings
 
 if sys.version_info >= (3, 14):
@@ -12,16 +10,13 @@ if sys.version_info >= (3, 14):
         category=UserWarning,
     )
 
-from langchain.agents import create_agent
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 
 from settings import SETTINGS
-from tools import calculator, doc_stats, search_in_context
 
 
 def build_vs() -> QdrantVectorStore:
@@ -77,80 +72,16 @@ def rag_answer(question: str, k: int = 8) -> str:
     )
 
     model = ChatOpenAI(model=SETTINGS.chat_model, temperature=0)
+    rendered_messages = prompt.format_messages(q=question, ctx=context)
+    print("\nFULDT PROMPT TIL LLM:\n")
+    for message in rendered_messages:
+        message_type = getattr(message, "type", message.__class__.__name__)
+        print(f"[{message_type.upper()}]")
+        print(message.content)
+        print()
+
     response = (prompt | model).invoke({"q": question, "ctx": context})
     return response.content
-
-
-def build_retrieval_tool(k: int = 8):
-    vs = build_vs()
-    retriever = vs.as_retriever(search_kwargs={"k": k})
-
-    @tool
-    def retrieve(query: str) -> str:
-        """Retrieve relevant chunks from the vector database across markdown, code, and PDF files."""
-        docs = retriever.invoke(query)
-        if not docs:
-            return "No relevant chunks found."
-
-        parts: list[str] = []
-        sources: list[str] = []
-        for doc in docs:
-            src = doc.metadata.get("source_file", "unknown")
-            sources.append(str(src))
-            parts.append(f"{_doc_citation(doc)}\n{doc.page_content}")
-
-        unique_sources = sorted(set(sources))
-        header = f"SOURCES={unique_sources}"
-        return header + "\n\n" + "\n\n".join(parts)
-
-    return retrieve
-
-
-@lru_cache(maxsize=1)
-def build_agent() -> Any:
-    llm = ChatOpenAI(model=SETTINGS.chat_model, temperature=0)
-    retrieval_tool = build_retrieval_tool()
-    tools = [retrieval_tool, calculator, doc_stats, search_in_context]
-
-    return create_agent(
-        llm,
-        tools=tools,
-        system_prompt=(
-            "You are a RAG assistant with tools for technical documents, markdown files, code files, and PDFs. "
-            "Always call retrieve() first for factual questions about the ingested material. "
-            "Use tools when needed, for example calculator, doc_stats, and search_in_context. "
-            "When answering, cite sources like [source=...] and include page when available. "
-            "If retrieved context is insufficient, say what is missing instead of guessing."
-        ),
-    )
-
-
-def _message_text(message: Any) -> str:
-    content = getattr(message, "content", None)
-    if content is None and isinstance(message, dict):
-        content = message.get("content")
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts: list[str] = []
-        for item in content:
-            if isinstance(item, str):
-                parts.append(item)
-            elif isinstance(item, dict):
-                text = item.get("text")
-                if isinstance(text, str):
-                    parts.append(text)
-        return "\n".join(parts).strip()
-    return str(content) if content is not None else str(message)
-
-
-def agent_answer(question: str) -> str:
-    agent = build_agent()
-    result = agent.invoke({"messages": [{"role": "user", "content": question}]})
-    if not isinstance(result, dict):
-        return str(result)
-    messages = result.get("messages", [])
-    return _message_text(messages[-1]) if messages else str(result)
 
 
 def format_retrieval_score_lines(question: str, k: int = 8) -> list[str]:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from rag_chain import agent_answer, format_retrieval_score_lines
+from rag_chain import format_retrieval_score_lines, rag_answer
 
 
 def main() -> None:
@@ -26,7 +26,7 @@ def main() -> None:
         for line in score_lines:
             print(line)
 
-        answer = agent_answer(question)
+        answer = rag_answer(question)
         print("\n" + answer)
 
 
