@@ -4,10 +4,11 @@ import base64
 import io
 import os
 import sys
+import html
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Request, UploadFile
+from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
@@ -17,7 +18,7 @@ ROOT_DIR = Path(__file__).resolve().parents[3]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from image_embeddings import get_image_embed_model, image_to_vector
+from image_embeddings import get_image_embed_model, image_to_vector, text_to_vector
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 COLLECTION_NAME = "modul3_photos_demo"
@@ -50,6 +51,7 @@ def get_client() -> QdrantClient:
 def render_page(
     *,
     uploaded_image_data_url: str | None = None,
+    text_query: str = "",
     results: list[dict[str, str | float]] | None = None,
     error: str | None = None,
 ) -> str:
@@ -74,12 +76,20 @@ def render_page(
     if uploaded_image_data_url:
         preview_html = (
             "<div class='preview'>"
-            "<h2>Uploadet billede</h2>"
+            "<h2>Søgt med billede</h2>"
             f"<img src='{uploaded_image_data_url}' alt='upload' />"
+            "</div>"
+        )
+    elif text_query:
+        preview_html = (
+            "<div class='preview text-preview'>"
+            "<h2>Søgt med tekst</h2>"
+            f"<p>{html.escape(text_query)}</p>"
             "</div>"
         )
 
     error_html = f"<p class='error'>{error}</p>" if error else ""
+    escaped_text_query = html.escape(text_query)
 
     return f"""
     <!doctype html>
@@ -122,14 +132,41 @@ def render_page(
             padding: 20px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
           }}
+          .search-modes {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+          }}
           form {{
             display: flex;
+            flex-direction: column;
+            align-items: stretch;
             gap: 12px;
-            flex-wrap: wrap;
-            align-items: center;
+          }}
+          .mode {{
+            padding: 16px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.72);
+          }}
+          .mode h2 {{
+            margin: 0 0 8px;
+            font-size: 24px;
+          }}
+          .mode p {{
+            margin: 0 0 12px;
+            color: #4d5b60;
           }}
           input[type="file"] {{
             font-size: 16px;
+          }}
+          input[type="text"] {{
+            font: inherit;
+            font-size: 16px;
+            padding: 12px 14px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: white;
           }}
           button {{
             border: 0;
@@ -148,6 +185,12 @@ def render_page(
             max-width: 280px;
             border-radius: 12px;
             border: 1px solid var(--line);
+          }}
+          .text-preview p {{
+            margin: 0;
+            font-size: 20px;
+            font-style: italic;
+            color: var(--accent);
           }}
           .grid {{
             margin-top: 24px;
@@ -182,13 +225,33 @@ def render_page(
       <body>
         <main>
           <h1>Photo Similarity Demo</h1>
-          <p>Upload et JPG-billede og se de 5 mest lignende billeder fra Qdrant med score.</p>
+          <p>Upload et JPG-billede eller skriv en tekst som f.eks. "turtle", og se de 5 mest lignende billeder fra Qdrant.</p>
           <p>Model: {get_image_embed_model()}</p>
           <div class="panel">
-            <form action="/search" method="post" enctype="multipart/form-data">
-              <input type="file" name="image" accept=".jpg,.jpeg" required />
-              <button type="submit">Find lignende billeder</button>
-            </form>
+            <div class="search-modes">
+              <div class="mode">
+                <h2>Billedsøgning</h2>
+                <p>Brug et billede som query.</p>
+                <form action="/search" method="post" enctype="multipart/form-data">
+                  <input type="file" name="image" accept=".jpg,.jpeg" required />
+                  <button type="submit">Find med billede</button>
+                </form>
+              </div>
+              <div class="mode">
+                <h2>Tekstsøgning</h2>
+                <p>Beskriv motivet med tekst.</p>
+                <form action="/search" method="post">
+                  <input
+                    type="text"
+                    name="text_query"
+                    value="{escaped_text_query}"
+                    placeholder="f.eks. turtle, beach sunset eller blue starfish"
+                    required
+                  />
+                  <button type="submit">Find med tekst</button>
+                </form>
+              </div>
+            </div>
             {error_html}
             {preview_html}
             {results_html}
@@ -205,18 +268,30 @@ def index() -> str:
 
 
 @app.post("/search", response_class=HTMLResponse)
-async def search(request: Request, image: UploadFile = File(...)) -> str:
-    if Path(image.filename or "").suffix.lower() not in SUPPORTED_EXTENSIONS:
-        return render_page(error="Upload kun .jpg eller .jpeg filer.")
+async def search(
+    image: UploadFile | None = File(None),
+    text_query: str = Form(""),
+) -> str:
+    text_query = text_query.strip()
+    uploaded_image_data_url: str | None = None
 
-    raw = await image.read()
-    try:
-        with Image.open(io.BytesIO(raw)) as pil_image:
-            vector = image_to_vector(pil_image)
-    except UnidentifiedImageError:
-        return render_page(error="Filen kunne ikke læses som et billede.")
+    if image and image.filename:
+        if Path(image.filename).suffix.lower() not in SUPPORTED_EXTENSIONS:
+            return render_page(text_query=text_query, error="Upload kun .jpg eller .jpeg filer.")
 
-    data_url = "data:image/jpeg;base64," + base64.b64encode(raw).decode("ascii")
+        raw = await image.read()
+        try:
+            with Image.open(io.BytesIO(raw)) as pil_image:
+                vector = image_to_vector(pil_image)
+        except UnidentifiedImageError:
+            return render_page(text_query=text_query, error="Filen kunne ikke læses som et billede.")
+
+        uploaded_image_data_url = "data:image/jpeg;base64," + base64.b64encode(raw).decode("ascii")
+    elif text_query:
+        vector = text_to_vector(text_query)
+    else:
+        return render_page(error="Upload et billede eller skriv en tekst.")
+
     client = get_client()
 
     try:
@@ -229,8 +304,9 @@ async def search(request: Request, image: UploadFile = File(...)) -> str:
         hits = response.points
     except Exception as exc:
         return render_page(
-            uploaded_image_data_url=data_url,
-            error=f"Søgning fejlede. Har du kørt ingest.py først? Detalje: {exc}",
+            uploaded_image_data_url=uploaded_image_data_url,
+            text_query=text_query,
+            error=f"Søgning fejlede. Har du kørt ingest_photos.py først? Detalje: {exc}",
         )
 
     results: list[dict[str, str | float]] = []
@@ -244,4 +320,8 @@ async def search(request: Request, image: UploadFile = File(...)) -> str:
             }
         )
 
-    return render_page(uploaded_image_data_url=data_url, results=results)
+    return render_page(
+        uploaded_image_data_url=uploaded_image_data_url,
+        text_query=text_query,
+        results=results,
+    )

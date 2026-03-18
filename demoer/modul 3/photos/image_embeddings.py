@@ -47,3 +47,15 @@ def image_to_vector(image: Image.Image) -> list[float]:
 
     vector = features[0].cpu().tolist()
     return l2_normalize([float(value) for value in vector])
+
+
+def text_to_vector(text: str) -> list[float]:
+    model, processor, torch = load_model()
+
+    inputs = processor(text=[text], return_tensors="pt", padding=True, truncation=True)
+
+    with torch.no_grad():
+        features = model.get_text_features(**inputs)
+
+    vector = features[0].cpu().tolist()
+    return l2_normalize([float(value) for value in vector])
