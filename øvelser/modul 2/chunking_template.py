@@ -10,7 +10,7 @@ if str(ROOT_DIR) not in sys.path:
 
 from tools.terminal_ui import BLUE, CYAN, DIM, GREEN, MAGENTA, YELLOW, colorize, print_label, print_section
 
-SOURCE_PATH = ROOT_DIR / "moduler" / "modul 2" / "data" / "knowledge_base" / "chunking_workshop.md"
+SOURCE_PATH = ROOT_DIR / "demoer" / "modul 2" / "data" / "knowledge_base" / "chunking_workshop.md"
 MODEL_NAME = "gpt-4o-mini"
 
 
