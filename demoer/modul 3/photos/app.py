@@ -23,12 +23,16 @@ DATA_DIR = Path(__file__).resolve().parent / "data"
 COLLECTION_NAME = "modul3_photos_demo"
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg"}
 
-app = FastAPI(title="Photo Similarity Demo")
-app.mount("/data", StaticFiles(directory=str(DATA_DIR)), name="data")
-
 
 def load_env() -> None:
     load_dotenv(ROOT_DIR / ".env", override=True)
+
+
+# Configure the model before the first request can load and cache its weights.
+load_env()
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+app = FastAPI(title="Photo Similarity Demo")
+app.mount("/data", StaticFiles(directory=str(DATA_DIR)), name="data")
 
 
 def get_qdrant_url() -> str:
@@ -40,7 +44,6 @@ def get_qdrant_api_key() -> str:
 
 
 def get_client() -> QdrantClient:
-    load_env()
     return QdrantClient(
         url=get_qdrant_url(),
         api_key=get_qdrant_api_key() or None,
@@ -230,7 +233,7 @@ async def search(request: Request, image: UploadFile = File(...)) -> str:
     except Exception as exc:
         return render_page(
             uploaded_image_data_url=data_url,
-            error=f"Søgning fejlede. Har du kørt ingest.py først? Detalje: {exc}",
+            error=f"Søgning fejlede. Har du kørt ingest_photos.py først? Detalje: {exc}",
         )
 
     results: list[dict[str, str | float]] = []

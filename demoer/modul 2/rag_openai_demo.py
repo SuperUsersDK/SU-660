@@ -14,7 +14,7 @@ if str(ROOT_DIR) not in sys.path:
 
 from tools.terminal_ui import BLUE, BOLD, DIM, GREEN, MAGENTA, YELLOW, clear_screen, colorize, print_label, print_section, prompt_to_continue
 
-MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+MODEL = os.getenv("OPENAI_MODEL", "gpt-6-luna")
 
 STOPWORDS = {
     "hvad",
@@ -125,6 +125,7 @@ def call_openai(client: OpenAI, prompt: str) -> str:
     response = client.chat.completions.create(
         model=model,
         temperature=0,
+        reasoning_effort="none",
         messages=[
             {
                 "role": "system",

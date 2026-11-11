@@ -171,10 +171,12 @@
         "model": {
           "__rl": true,
           "mode": "list",
-          "value": "gpt-4.1-mini",
-          "cachedResultName": "gpt-4.1-mini"
+          "value": "gpt-6-luna",
+          "cachedResultName": "gpt-6-luna"
         },
-        "options": {}
+        "options": {
+          "extraBody": "{\"reasoning_effort\":\"none\"}"
+        }
       },
       "id": "f864bb5e-9e40-43fd-8357-dcb950706dae",
       "name": "OpenAI Chat Model",

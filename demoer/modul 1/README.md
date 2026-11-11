@@ -31,11 +31,18 @@ Efter demoen skal deltagerne kunne forklare:
 
 ## Koer demoen
 
+Foelg [opsætningen i repository-roden](../../README.md), aktivér `.venv`, og sæt
+`OPENAI_API_KEY` i `.env`. Demoen bruger rigtige OpenAI API-kald og kræver
+internetadgang. `OPENAI_MODEL` vælger modellen; standarden er `gpt-6-luna`.
+Der bruges lokal ord-baseret retrieval over de fire tekster i `data/`.
+
+Kør fra repository-roden:
+
 ```bash
-python "moduler/modul 1/advanced_prompt_engineering_demo.py"
+python "demoer/modul 1/advanced_prompt_engineering_demo.py"
 ```
 
-Demoen bruger en lille mock-model, saa den kan koeres uden API-noegler eller eksterne services.
+Scriptet holder pauser mellem delene, så underviseren kan diskutere outputtet.
 
 ## Demoens struktur
 
@@ -89,6 +96,15 @@ Her vises:
 
 Pointen er, at prompt engineering ogsaa handler om pladsstyring, ikke kun formulering.
 
+Tallene er undervisningsestimater baseret på ordtælling. Instruktioner om svarformat
+er en del af inputtet; plads til modellens genererede svar skal reserveres separat.
+Memory-resuméet i denne demo er forberedt til eksempel-historikken. `tokenbudget2.py`
+viser i stedet komprimering af memory med et rigtigt modelkald.
+
+`tokenbudget.py` er en lokal illustration med et kunstigt kontekstvindue på 800
+enheder og en særskilt svarreserve. Det er en regneøvelse, ikke modellens faktiske
+kontekstgrænse eller en måling med dens tokenizer.
+
 ### 6. Kontrol over output
 
 Til sidst vises, hvordan man gaar fra frit tekstsvar til et mere stabilt JSON-format.
@@ -104,7 +120,7 @@ Pointen er, at kontrolleret output er lettere at:
 
 En god maade at bruge demoen paa er:
 
-1. Koer scriptet fra start til slut uden afbrydelser.
+1. Kør scriptet fra start til slut, og brug Enter ved de indbyggede pauser.
 2. Gaa derefter tilbage til hver del og diskuter, hvad der blev forbedret.
 3. Sporg deltagerne, hvilket problem hver forbedring loeser.
 4. Tal om tradeoffs, fx at mere memory giver bedre sammenhaeng, men ogsaa hoejere tokenforbrug.
@@ -122,7 +138,7 @@ En god maade at bruge demoen paa er:
 
 Hvis du vil bygge videre paa demoen, kan du:
 
-- erstatte mock-modellen med et rigtigt API-kald
+- erstatte det forberedte memory-resumé med modelbaseret komprimering
 - tilfoeje tiktoken eller tilsvarende til mere praecis tokenmaaling
 - udvide vidensbasen med flere dokumenter
 - tilfoeje retrieval-score eller citations

@@ -9,6 +9,8 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from tools.terminal_ui import BLUE, CYAN, DIM, GREEN, MAGENTA, YELLOW, colorize, print_label, print_section
+from chunking.common import validate_chunk_window
+from chunking.tokenizer_cache import configure_tokenizer_cache
 
 SOURCE_PATH = ROOT_DIR / "demoer" / "modul 2" / "data" / "knowledge_base" / "chunking_workshop.md"
 MODEL_NAME = "gpt-4o-mini"
@@ -24,6 +26,7 @@ def tokenize(text: str) -> list[int]:
     except ImportError:
         return text.split()
 
+    configure_tokenizer_cache()
     encoding = tiktoken.encoding_for_model(MODEL_NAME)
     return encoding.encode(text)
 
@@ -34,6 +37,7 @@ def decode(tokens: list[int]) -> str:
     except ImportError:
         return " ".join(tokens)
 
+    configure_tokenizer_cache()
     encoding = tiktoken.encoding_for_model(MODEL_NAME)
     return encoding.decode(tokens)
 
@@ -43,6 +47,7 @@ def approx_tokens(text: str) -> int:
 
 
 def chunk_fixed_size(text: str, *, chunk_tokens: int, overlap_tokens: int = 0) -> list[str]:
+    validate_chunk_window(chunk_tokens, overlap_tokens)
     tokens = tokenize(text)
     chunks: list[str] = []
     start = 0

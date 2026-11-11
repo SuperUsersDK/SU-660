@@ -25,8 +25,10 @@ from typing import Any
 
 try:
     from chunking.common import Chunk, MARKDOWN_DOC, SAMPLE_DOCS, format_hits, print_chunk_preview, retrieve
+    from chunking.tokenizer_cache import configure_tokenizer_cache
 except ModuleNotFoundError:
     from common import Chunk, MARKDOWN_DOC, SAMPLE_DOCS, format_hits, print_chunk_preview, retrieve
+    from tokenizer_cache import configure_tokenizer_cache
 
 
 def _wrap_text_chunks(
@@ -75,6 +77,7 @@ def _print_strategy_report(name: str, chunks: list[Chunk], query: str, top_k: in
 
 
 def main() -> None:
+    configure_tokenizer_cache()
     try:
         from langchain_text_splitters import (
             CharacterTextSplitter,

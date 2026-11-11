@@ -14,7 +14,9 @@ if str(ROOT_DIR) not in sys.path:
 
 from tools.terminal_ui import BLUE, DIM, GREEN, MAGENTA, YELLOW, clear_screen, colorize, print_label, print_section, prompt_to_continue
 
-MODEL = "gpt-4o-mini"
+
+def get_chat_model() -> str:
+    return os.getenv("OPENAI_MODEL", "gpt-6-luna")
 
 
 def load_root_env() -> None:
@@ -49,7 +51,7 @@ def build_prompt_parts(memory: str) -> dict[str, str]:
         "User question": (
             "Hvordan haenger embeddings, chunking, overlap og metadata sammen i et RAG-system?"
         ),
-        "Output": "Svar i op til 8 saetninger med eksempler og opsummering.",
+        "Svarformat": "Svar i op til 8 saetninger med eksempler og opsummering.",
     }
 
 
@@ -60,7 +62,7 @@ def render_prompt(parts: dict[str, str]) -> str:
         "Conversation memory",
         "Retrieved dokumenter",
         "User question",
-        "Output",
+        "Svarformat",
     ]
     sections = [f"{name}:\n{parts[name]}" for name in ordered_names]
     return "\n\n".join(sections)
@@ -72,8 +74,9 @@ def total_tokens(parts: dict[str, str]) -> int:
 
 def compress_memory(client: OpenAI, memory: str, question: str) -> str:
     response = client.chat.completions.create(
-        model=MODEL,
+        model=get_chat_model(),
         temperature=0,
+        reasoning_effort="none",
         messages=[
             {
                 "role": "system",
@@ -97,8 +100,9 @@ def compress_memory(client: OpenAI, memory: str, question: str) -> str:
 
 def answer_with_prompt(client: OpenAI, prompt: str) -> str:
     response = client.chat.completions.create(
-        model=MODEL,
+        model=get_chat_model(),
         temperature=0,
+        reasoning_effort="none",
         messages=[
             {
                 "role": "system",
@@ -140,7 +144,7 @@ def main() -> None:
 
     print_section("Token Budget 2")
     print_label("MODEL", YELLOW)
-    print(colorize(MODEL, DIM))
+    print(colorize(get_chat_model(), DIM))
     print_label("OPRINDELIG PROMPT", BLUE)
     print(colorize(original_prompt, DIM))
 
@@ -157,15 +161,16 @@ def main() -> None:
     print_label("NY CONVERSATION MEMORY", MAGENTA)
     print(colorize(shortened_memory, GREEN))
 
-    print_label("TOKEN SAMMENLIGNING", YELLOW)
+    print_label("TOKEN SAMMENLIGNING (UNDERVISNINGSESTIMAT)", YELLOW)
+    print("Tallene er ca.-tal fra ordtælling; plads til det genererede svar skal reserveres separat.")
     print(
-        f"Conversation memory foer: {approx_tokens(original_parts['Conversation memory'])} tokens"
+        f"Conversation memory foer: ca. {approx_tokens(original_parts['Conversation memory'])} inputenheder"
     )
     print(
-        f"Conversation memory nu:   {approx_tokens(shortened_parts['Conversation memory'])} tokens"
+        f"Conversation memory nu:   ca. {approx_tokens(shortened_parts['Conversation memory'])} inputenheder"
     )
-    print(f"Samlet prompt foer:       {total_tokens(original_parts)} tokens")
-    print(f"Samlet prompt nu:         {total_tokens(shortened_parts)} tokens")
+    print(f"Samlet prompt foer:       ca. {total_tokens(original_parts)} inputenheder")
+    print(f"Samlet prompt nu:         ca. {total_tokens(shortened_parts)} inputenheder")
 
     prompt_to_continue("Tryk Enter for at koere den nye prompt...")
 

@@ -19,5 +19,5 @@ Formaalet er at vise den didaktiske pointe:
 Koer demoen med:
 
 ```bash
-python "moduler/modul 2/rag_openai_demo.py"
+python "demoer/modul 2/rag_openai_demo.py"
 ```

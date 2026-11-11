@@ -13,7 +13,9 @@ if str(ROOT_DIR) not in sys.path:
 
 from tools.terminal_ui import BLUE, DIM, GREEN, YELLOW, clear_screen, colorize, print_label, print_section, prompt_to_continue
 
-MODEL = "gpt-4o-mini"
+
+def get_chat_model() -> str:
+    return os.getenv("OPENAI_MODEL", "gpt-6-luna")
 
 
 def load_root_env() -> None:
@@ -33,13 +35,14 @@ def main() -> None:
 
     print_section("Hallucination Demo 1")
     print_label("MODEL", YELLOW)
-    print(colorize(MODEL, DIM))
+    print(colorize(get_chat_model(), DIM))
     print_label("SPOERGSMAAL", BLUE)
     print(colorize(question, DIM))
 
     naive_response = client.chat.completions.create(
-        model=MODEL,
+        model=get_chat_model(),
         temperature=0,
+        reasoning_effort="none",
         messages=[
             {
                 "role": "system",
@@ -64,13 +67,14 @@ def main() -> None:
 
     print_section("Hallucination Demo 2")
     print_label("MODEL", YELLOW)
-    print(colorize(MODEL, DIM))
+    print(colorize(get_chat_model(), DIM))
     print_label("SPOERGSMAAL", BLUE)
     print(colorize(question, DIM))
 
     careful_response = client.chat.completions.create(
-        model=MODEL,
+        model=get_chat_model(),
         temperature=0,
+        reasoning_effort="none",
         messages=[
             {
                 "role": "system",

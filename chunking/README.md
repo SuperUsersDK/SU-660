@@ -2,7 +2,8 @@
 
 Denne mappe indeholder undervisningsvenlige Python-eksempler paa chunking-strategier.
 
-Eksemplerne er lavet uden eksterne dependencies (kun Python standard library), saa de er nemme at koere:
+Eksempel 01–07 bruger kun Python standard library. Eksempel 08 kræver LangChain
+og tiktoken fra projektets dependencies. Kør fra repository-roden:
 
 ```bash
 python3 chunking/01_fixed_size_words.py
@@ -25,5 +26,12 @@ Formaal:
 Bemærk:
 
 - `08_builtin_langchain_splitters.py` kræver `langchain_text_splitters` (og `tiktoken` til `TokenTextSplitter`).
+- Før demo 08, modul 2's token-chunking og chunking-opgaven køres
+  `python tools/warmup_tokenizers.py` én gang med internetadgang.
+  Token-data gemmes i `.cache/tiktoken/`, som de samme eksempler bruger offline.
+  Se [fælles opsætning](../README.md) for cacheplacering og miljøvariabler.
+- I de hjemmelavede recursive-eksempler begrænser `max_chars` basis-segmentet før
+  overlap. Det færdige chunk kan være op til `max_chars + overlap_chars + 1` tegn
+  langt inklusive mellemrum. LangChains egne splitters har deres egne størrelsesregler.
 - Til undervisning findes et worksheet til demo 08: `chunking/08_builtin_langchain_splitters_worksheet.md`.
 - Underviser-facit til worksheet: `chunking/08_builtin_langchain_splitters_worksheet_instructor.md`.

@@ -91,10 +91,11 @@ def render_prompt(
 
 
 def call_openai(client: OpenAI, prompt: str) -> str:
-    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    model = os.getenv("OPENAI_MODEL", "gpt-6-luna")
     response = client.chat.completions.create(
         model=model,
         temperature=0,
+        reasoning_effort="none",
         messages=[
             {
                 "role": "system",
@@ -110,10 +111,11 @@ def call_openai(client: OpenAI, prompt: str) -> str:
 
 
 def call_openai_json(client: OpenAI, prompt: str) -> str:
-    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    model = os.getenv("OPENAI_MODEL", "gpt-6-luna")
     response = client.chat.completions.create(
         model=model,
         temperature=0,
+        reasoning_effort="none",
         response_format={
             "type": "json_schema",
             "json_schema": {
@@ -195,7 +197,8 @@ def build_long_history() -> list[str]:
     ]
 
 
-def summarize_history(history: list[str]) -> str:
+def prepared_history_summary() -> str:
+    """Return the instructor-prepared summary of this demo's fixed example history."""
     return (
         "Brugeren bygger en RAG-applikation og har allerede spurgt om embeddings, "
         "chunking, retrieval og overlap. Assistenten skal bevare teknisk kontekst "
@@ -208,16 +211,17 @@ def token_budget_report(parts: dict[str, str]) -> dict[str, int]:
 
 
 def print_budget_report(before: dict[str, int], after: dict[str, int]) -> None:
-    print_label("TOKEN BUDGET", CYAN)
+    print_label("TOKEN BUDGET (UNDERVISNINGSESTIMAT)", CYAN)
+    print("Ca.-tal fra ordtælling. Svarformat er input; genereret svar kræver en særskilt reserve.")
     print(colorize("Foer trimming:", BOLD, YELLOW))
     for name, count in before.items():
-        print(f"- {name}: {count}")
-    print(f"- total: {sum(before.values())}")
+        print(f"- {name}: ca. {count}")
+    print(f"- total: ca. {sum(before.values())}")
 
     print(colorize("\nEfter trimming:", BOLD, YELLOW))
     for name, count in after.items():
-        print(f"- {name}: {count}")
-    print(f"- total: {sum(after.values())}")
+        print(f"- {name}: ca. {count}")
+    print(f"- total: ca. {sum(after.values())}")
 
 
 def demo() -> None:
@@ -299,16 +303,20 @@ def demo() -> None:
         "memory": "\n".join(full_history),
         "context": "\n\n".join(oversized_context),
         "question": "Hvordan haenger embeddings, chunking og overlap sammen i RAG?",
-        "output_budget": "Svar i op til 8 saetninger og inkluder gerne ekstra forklaring.",
+        "answer_format": "Svar i op til 8 saetninger og inkluder gerne ekstra forklaring.",
     }
-    summary_memory = summarize_history(full_history)
+    summary_memory = prepared_history_summary()
+    print_label("FORBEREDT MEMORY-RESUMÉ", CYAN)
+    print("Underviseren har forberedt dette resumé af eksempel-historikken.")
+    print(summary_memory)
+    print("Se tokenbudget2.py for modelbaseret komprimering af memory.")
     trimmed_context = oversized_context[:2]
     budget_after_parts = {
         "system": "Du er en teknisk assistent, der svarer kort og grounded.",
         "memory": summary_memory,
         "context": "\n\n".join(trimmed_context),
         "question": "Hvordan haenger embeddings, chunking og overlap sammen i RAG?",
-        "output_budget": "Svar i maks 3 saetninger.",
+        "answer_format": "Svar i maks 3 saetninger.",
     }
     print_budget_report(token_budget_report(budget_before_parts), token_budget_report(budget_after_parts))
 

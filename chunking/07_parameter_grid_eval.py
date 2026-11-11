@@ -18,13 +18,17 @@ Vigtig pointe:
 from __future__ import annotations
 
 try:
-    from chunking.common import QUERY_SET, SAMPLE_DOCS, chunk_fixed_words, keyword_score, retrieve
+    from chunking.common import MARKDOWN_DOC, QUERY_SET, SAMPLE_DOCS, chunk_fixed_words, keyword_score, retrieve
 except ModuleNotFoundError:
-    from common import QUERY_SET, SAMPLE_DOCS, chunk_fixed_words, keyword_score, retrieve
+    from common import MARKDOWN_DOC, QUERY_SET, SAMPLE_DOCS, chunk_fixed_words, keyword_score, retrieve
+
+
+# Include the policy document used by the termination-clause benchmark question.
+BENCHMARK_DOCS = [*SAMPLE_DOCS, MARKDOWN_DOC]
 
 
 def evaluate(chunk_words: int, overlap_words: int) -> tuple[float, float, int]:
-    chunks = chunk_fixed_words(SAMPLE_DOCS, chunk_words=chunk_words, overlap_words=overlap_words)
+    chunks = chunk_fixed_words(BENCHMARK_DOCS, chunk_words=chunk_words, overlap_words=overlap_words)
     scores: list[float] = []
     top_scores: list[float] = []
     for case in QUERY_SET:

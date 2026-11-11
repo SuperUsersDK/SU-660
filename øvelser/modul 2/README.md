@@ -25,3 +25,14 @@ Dokumentsaettet indeholder med vilje en blanding af:
    - dubletter eller naesten identiske dokumenter
 
 Pointen med oevlelsen er, at RAG-kvalitet starter foer embeddings.
+
+### Forberedelse til chunking-opgaven
+
+Før token-baseret chunking i `chunking_template.py` og løsningen køres, skal
+tokenizer-data være hentet. Fra repository-roden med internetadgang:
+
+```powershell
+python tools/warmup_tokenizers.py
+```
+
+Bevar `.cache/tiktoken/` for at kunne køre opgaven offline bagefter.

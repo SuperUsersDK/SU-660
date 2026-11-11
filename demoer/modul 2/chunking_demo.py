@@ -10,6 +10,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from tools.terminal_ui import BLUE, BOLD, CYAN, DIM, GREEN, MAGENTA, RED, YELLOW, clear_screen, colorize, print_label, print_section, prompt_to_continue
+from chunking.tokenizer_cache import configure_tokenizer_cache
 
 from chunking.common import (  # noqa: E402
     Chunk,
@@ -17,6 +18,7 @@ from chunking.common import (  # noqa: E402
     chunk_markdown_headings,
     chunk_semanticish_sentences,
     chunk_sentence_groups,
+    validate_chunk_window,
 )
 
 DATA_PATH = Path(__file__).resolve().parent / "data" / "knowledge_base" / "chunking_workshop.md"
@@ -37,6 +39,7 @@ def tokenize_via_tiktoken(text: str, model_name: str = "gpt-4o-mini") -> list[in
     except ImportError as exc:  # pragma: no cover - teaching fallback
         raise RuntimeError("Dette demo kræver tiktoken for token-baseret chunking.") from exc
 
+    configure_tokenizer_cache()
     encoding = tiktoken.encoding_for_model(model_name)
     return encoding.encode(text)
 
@@ -44,6 +47,7 @@ def tokenize_via_tiktoken(text: str, model_name: str = "gpt-4o-mini") -> list[in
 def decode_via_tiktoken(tokens: list[int], model_name: str = "gpt-4o-mini") -> str:
     import tiktoken
 
+    configure_tokenizer_cache()
     encoding = tiktoken.encoding_for_model(model_name)
     return encoding.decode(tokens)
 
@@ -56,6 +60,7 @@ def chunk_by_tokens(
     strategy_name: str,
     model_name: str = "gpt-4o-mini",
 ) -> list[Chunk]:
+    validate_chunk_window(chunk_tokens, overlap_tokens)
     tokens = tokenize_via_tiktoken(document["text"], model_name=model_name)
     chunks: list[Chunk] = []
     start = 0

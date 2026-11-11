@@ -20,7 +20,7 @@ class Settings:
     collection_name: str = os.getenv("QDRANT_COLLECTION", "rag_data")
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     embedding_model: str = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
-    chat_model: str = os.getenv("CHAT_MODEL", "gpt-4o-mini")
+    chat_model: str = os.getenv("OPENAI_MODEL", os.getenv("CHAT_MODEL", "gpt-6-luna"))
 
 
 SETTINGS = Settings()

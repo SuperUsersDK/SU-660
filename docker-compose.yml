@@ -1,6 +1,7 @@
 services:
   qdrant:
-    image: qdrant/qdrant:latest
+    # Qdrant 1.20.0: same image used for the classroom checks.
+    image: qdrant/qdrant@sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2
     ports:
       - "6333:6333"
       - "6334:6334"
@@ -10,7 +11,8 @@ services:
       QDRANT__SERVICE__API_KEY: hemmelighed
 
   n8n:
-    image: n8nio/n8n:latest
+    # n8n 2.47.4: same image used for the classroom checks.
+    image: n8nio/n8n@sha256:56a3f0d56c2888b53ca7d89de4aa3de702888f33667c96a1f1d7118548f979e9
     ports:
       - "5678:5678"
     environment:

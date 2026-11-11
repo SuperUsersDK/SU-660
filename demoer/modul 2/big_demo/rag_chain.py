@@ -76,7 +76,7 @@ def rag_answer(question: str, k: int = 8) -> str:
         ]
     )
 
-    model = ChatOpenAI(model=SETTINGS.chat_model, temperature=0)
+    model = ChatOpenAI(model=SETTINGS.chat_model, temperature=0, reasoning_effort="none")
     response = (prompt | model).invoke({"q": question, "ctx": context})
     return response.content
 
@@ -108,7 +108,7 @@ def build_retrieval_tool(k: int = 8):
 
 @lru_cache(maxsize=1)
 def build_agent() -> Any:
-    llm = ChatOpenAI(model=SETTINGS.chat_model, temperature=0)
+    llm = ChatOpenAI(model=SETTINGS.chat_model, temperature=0, reasoning_effort="none")
     retrieval_tool = build_retrieval_tool()
     tools = [retrieval_tool, calculator, doc_stats, search_in_context]
 

@@ -22,7 +22,8 @@ def main() -> None:
         except Exception as exc:
             score_lines = [f"(kunne ikke hente retrieval scores: {exc})"]
 
-        print("\nRetrieved chunks fra knowledge base:")
+        print("\nDiagnostisk søgning med dit oprindelige spørgsmål:")
+        print("Agenten kan formulere en anden søgning, når den kalder retrieve.")
         for line in score_lines:
             print(line)
 

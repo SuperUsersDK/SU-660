@@ -27,6 +27,7 @@ def main() -> None:
 
     print("=== Eksempel 5: Heading-aware chunking (Markdown) ===")
     print(f"Antal heading-aware chunks: {len(chunks)}")
+    print("Basis-segment pr. sektion: højst 160 tegn; derefter tilføjes op til 30 tegn overlap.")
     print()
     for c in chunks:
         print(

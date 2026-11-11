@@ -187,12 +187,20 @@ def _make_chunk(doc: dict[str, str], text: str, idx: int, strategy: str, **meta:
     )
 
 
+def validate_chunk_window(chunk_size: int, overlap: int) -> None:
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be greater than zero")
+    if overlap < 0 or overlap >= chunk_size:
+        raise ValueError("overlap must be non-negative and smaller than chunk_size")
+
+
 def chunk_fixed_words(
     docs: list[dict[str, str]],
     chunk_words: int,
     overlap_words: int = 0,
     strategy_name: str = "fixed_words",
 ) -> list[Chunk]:
+    validate_chunk_window(chunk_words, overlap_words)
     chunks: list[Chunk] = []
     for doc in docs:
         words = doc["text"].split()
@@ -217,6 +225,7 @@ def chunk_fixed_chars(
     overlap_chars: int = 0,
     strategy_name: str = "fixed_chars",
 ) -> list[Chunk]:
+    validate_chunk_window(chunk_chars, overlap_chars)
     chunks: list[Chunk] = []
     for doc in docs:
         text = " ".join(doc["text"].split())
@@ -356,6 +365,10 @@ def chunk_recursive(
     separators: list[str] | None = None,
     strategy_name: str = "recursive",
 ) -> list[Chunk]:
+    """Limit base segments to max_chars, then prepend overlap from the previous one.
+
+    Final chunks can exceed max_chars by up to overlap_chars plus one joining space.
+    """
     if separators is None:
         separators = ["\n\n", "\n", ". ", " ", ""]
     chunks: list[Chunk] = []

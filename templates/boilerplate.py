@@ -46,7 +46,8 @@ def main() -> None:
     print(f"Prompt: {prompt}")
 
     response = client.chat.completions.create(
-        model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
+        model=os.getenv("OPENAI_MODEL", "gpt-6-luna"),
+        reasoning_effort="none",
         messages=[
             {
                 "role": "user",

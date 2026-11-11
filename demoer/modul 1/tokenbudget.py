@@ -10,7 +10,8 @@ if str(ROOT_DIR) not in sys.path:
 
 from tools.terminal_ui import BLUE, DIM, GREEN, YELLOW, clear_screen, colorize, print_label, print_section, prompt_to_continue
 
-MAX_CONTEXT_WINDOW = 800
+DEMO_CONTEXT_WINDOW = 800
+DEMO_OUTPUT_RESERVE = 120
 
 
 def approx_tokens(text: str) -> int:
@@ -25,13 +26,18 @@ def print_budget(title: str, parts: dict[str, str]) -> None:
     for name, text in parts.items():
         count = approx_tokens(text)
         total += count
-        print(f"- {name:<22} {count:>4} tokens")
+        print(f"- {name:<22} ca. {count:>4} inputenheder")
 
     print_label("OPSUMMERING", GREEN)
-    print(f"Samlet promptbudget: {total} tokens")
-    print(f"Maks context window: {MAX_CONTEXT_WINDOW} tokens")
+    prompt_budget = DEMO_CONTEXT_WINDOW - DEMO_OUTPUT_RESERVE
+    print("Undervisningsestimat baseret på ordtælling; enhederne illustrerer tokens.")
+    print(f"Kunstigt kontekstvindue: {DEMO_CONTEXT_WINDOW} enheder")
+    print(f"Reserveret til genereret svar: {DEMO_OUTPUT_RESERVE} enheder")
+    print(f"Plads til input: {prompt_budget} enheder")
+    print(f"Estimeret input: ca. {total} enheder")
+    print("Svarformat er en inputinstruktion; svarreserven er plads til den genererede tekst.")
 
-    if total > MAX_CONTEXT_WINDOW:
+    if total > prompt_budget:
         print(colorize("Status: Over budget", YELLOW))
     else:
         print(colorize("Status: Inden for budget", GREEN))
@@ -74,7 +80,7 @@ def main() -> None:
         "User question": (
             "Hvordan haenger embeddings, chunking, overlap og metadata sammen i et RAG-system?"
         ),
-        "Output": "Svar i op til 8 saetninger med eksempler og opsummering.",
+        "Svarformat": "Svar i op til 8 saetninger med eksempler og opsummering.",
     }
 
     optimized_prompt = {
@@ -95,7 +101,7 @@ def main() -> None:
         "User question": (
             "Hvordan haenger embeddings, chunking og overlap sammen i et RAG-system?"
         ),
-        "Output": "Svar i maks 3 saetninger.",
+        "Svarformat": "Svar i maks 3 saetninger.",
     }
 
     print_section("Token Budget Demo")
@@ -108,7 +114,7 @@ def main() -> None:
     )
     print(
         colorize(
-            "Prompten bestaar typisk af system prompt, instruktioner, memory, retrieval, user question og output.",
+            "Inputtet består af system prompt, instruktioner, memory, retrieval, spørgsmål og svarformat. Svaret kræver også plads.",
             DIM,
         )
     )

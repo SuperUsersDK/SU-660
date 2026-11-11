@@ -34,7 +34,7 @@ def load_env() -> None:
 
 
 def get_chat_model() -> str:
-    return os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+    return os.getenv("OPENAI_MODEL", "gpt-6-luna")
 
 
 def get_embed_model() -> str:
@@ -214,7 +214,7 @@ def github_repo_stats(repo: str) -> str:
 
 
 def build_agent() -> Any:
-    llm = ChatOpenAI(model=get_chat_model(), temperature=0)
+    llm = ChatOpenAI(model=get_chat_model(), temperature=0, reasoning_effort="none")
     tools = [search_documents, lookup_database, web_search, github_repo_stats]
     return create_agent(
         llm,

@@ -156,6 +156,55 @@ def existing_ids_in_collection(
     return found
 
 
+def ids_for_document_directory(
+    client: QdrantClient, collection_name: str, document_dir: Path
+) -> set[str | int]:
+    """Find this directory's points, including points written before root tagging."""
+    found: set[str | int] = set()
+    offset = None
+    while True:
+        points, offset = client.scroll(
+            collection_name=collection_name,
+            limit=256,
+            offset=offset,
+            with_payload=["metadata"],
+            with_vectors=False,
+        )
+        for point in points:
+            metadata = (point.payload or {}).get("metadata", {})
+            if not isinstance(metadata, dict):
+                continue
+            ingest_root = metadata.get("ingest_root")
+            source = metadata.get("source")
+            if isinstance(ingest_root, str):
+                belongs_to_directory = Path(ingest_root).resolve() == document_dir
+            elif isinstance(source, str) and Path(source).is_absolute():
+                # Older ingests recorded the full source path but no ingest_root.
+                belongs_to_directory = Path(source).resolve().parent == document_dir
+            else:
+                belongs_to_directory = False
+            if belongs_to_directory:
+                found.add(point.id)
+        if offset is None:
+            return found
+
+
+def delete_stale_chunks(
+    client: QdrantClient,
+    collection_name: str,
+    previous_ids: set[str | int],
+    current_ids: set[str],
+) -> int:
+    stale_ids = list(previous_ids - current_ids)
+    for start in range(0, len(stale_ids), 256):
+        client.delete(
+            collection_name=collection_name,
+            points_selector=qdrant_models.PointIdsList(points=stale_ids[start : start + 256]),
+            wait=True,
+        )
+    return len(stale_ids)
+
+
 def _chunk_label(doc, chunk_id: str) -> str:
     src = str(doc.metadata.get("source_file", "unknown"))
     page = str(doc.metadata.get("page", "?"))
@@ -251,9 +300,13 @@ def main(document_dir: str = str(DEFAULT_DOCUMENT_DIR), force: bool = False) -> 
     if not settings.openai_api_key:
         raise RuntimeError("OPENAI_API_KEY mangler")
 
-    document_paths = iter_document_paths(document_dir)
-    if not document_paths:
-        raise RuntimeError(f"Ingen .pdf, .md, .py eller .cs filer fundet i {document_dir}")
+    base_dir = Path(document_dir)
+    if not base_dir.is_absolute():
+        base_dir = APP_DIR / base_dir
+    base_dir = base_dir.resolve()
+    if not base_dir.is_dir():
+        raise RuntimeError(f"Dokumentmappen findes ikke: {base_dir}")
+    document_paths = iter_document_paths(str(base_dir))
 
     print_section("Ingest Demo")
     print_label("CONFIG", CYAN)
@@ -273,14 +326,19 @@ def main(document_dir: str = str(DEFAULT_DOCUMENT_DIR), force: bool = False) -> 
     print_status("QDRANT", f"Forbinder til {settings.qdrant_url}")
     client.get_collections()
     print_status("QDRANT", "Forbindelse OK", GREEN)
-    embeddings = OpenAIEmbeddings(model=settings.embedding_model)
+    embeddings = OpenAIEmbeddings(model=settings.embedding_model) if document_paths else None
     if not client.collection_exists(collection_name):
+        if not document_paths:
+            print_status("DONE", "Ingen dokumenter eller eksisterende collection at synkronisere", GREEN)
+            return
         print_status("COLLECT", f"Opretter collection {collection_name}", YELLOW)
         ensure_collection(client, collection_name, embeddings)
         print_status("COLLECT", "Collection oprettet", GREEN)
     else:
         print_status("COLLECT", f"Bruger eksisterende collection {collection_name}", GREEN)
-    vs = build_vector_store(client, collection_name, embeddings)
+    previous_ids = ids_for_document_directory(client, collection_name, base_dir)
+    current_ids: set[str] = set()
+    vs = build_vector_store(client, collection_name, embeddings) if document_paths else None
 
     total_source_docs = 0
     total_chunks = 0
@@ -306,15 +364,17 @@ def main(document_dir: str = str(DEFAULT_DOCUMENT_DIR), force: bool = False) -> 
         ids: list[str] = []
         for i, doc in enumerate(chunks):
             doc.metadata["chunk_index"] = i
+            doc.metadata["ingest_root"] = str(base_dir)
             chunk_id = stable_id(
                 doc.page_content,
-                str(doc.metadata.get("source_file", path.name)),
+                str(path.resolve()),
                 int(doc.metadata.get("page", -1)),
                 int(doc.metadata.get("chunk_index", i)),
             )
             doc.metadata["chunk_id"] = chunk_id
             ids.append(chunk_id)
 
+        current_ids.update(ids)
         total_chunks += len(chunks)
         new_chunks = chunks
         new_ids = ids
@@ -340,6 +400,8 @@ def main(document_dir: str = str(DEFAULT_DOCUMENT_DIR), force: bool = False) -> 
             for chunk, chunk_id in zip(chunks, ids):
                 print(colorize("FORCE     ", BOLD, MAGENTA) + colorize(_chunk_label(chunk, chunk_id), DIM))
 
+        if not new_ids:
+            continue
         print_status("EMBED", f"Genererer embeddings for {len(new_chunks)} chunks")
         print_status("STORE", "Gemmer chunks i Qdrant")
         vs.add_documents(new_chunks, ids=new_ids)
@@ -349,6 +411,11 @@ def main(document_dir: str = str(DEFAULT_DOCUMENT_DIR), force: bool = False) -> 
             f"Ingested {len(new_chunks)} nye chunks ud af {len(chunks)} fra {path.name}",
             GREEN,
         )
+
+    # Prune only after every file has loaded and all replacement writes succeeded.
+    # A failed ingest leaves the previous chunks available for a subsequent retry.
+    removed_chunks = delete_stale_chunks(client, collection_name, previous_ids, current_ids)
+    print_status("SYNC", f"Fjernet {removed_chunks} forældede chunks fra {base_dir}", GREEN)
 
     print_section("Færdig")
     print(
@@ -362,7 +429,9 @@ def main(document_dir: str = str(DEFAULT_DOCUMENT_DIR), force: bool = False) -> 
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Ingest PDF/Markdown/code files into Qdrant")
+    parser = argparse.ArgumentParser(
+        description="Sync PDF/Markdown/code files into Qdrant, removing this directory's stale chunks"
+    )
     parser.add_argument(
         "--document-dir",
         "--pdf-dir",
