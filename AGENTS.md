@@ -22,7 +22,11 @@ kursuseksempler, heller ikke `.py`-filerne.
   med `EOFError`.
 - Kør `big_demo/ingest.py` før `big_demo/chat_cli.py`. Chat-CLI'en stoppes med `exit`.
 - `demoer/modul 3/photos/ingest_photos.py` kræver mindst 5 `.jpg`-billeder i
-  `demoer/modul 3/photos/data/`.
+  `demoer/modul 3/photos/data/`. Mappen er git-ignoreret og må aldrig committes.
+- Kør foto-ingest før `photos/tag_photos.py` og `photo_agent_demo.py`. Siden
+  "Sammenlign modeller" kræver desuden `ingest_photos.py --model openai/clip-vit-large-patch14`.
+- Foto-webappen er en server: start den med
+  `cd "demoer/modul 3/photos" && uvicorn app:app --port 8010` i stedet for at køre `app.py`.
 - Testene køres fra repository-roden med `python -m unittest discover -s tests`.
   Testfilerne virker ikke, hvis man starter dem direkte.
 - Agent-demoerne i modul 3 skriver til de versionerede filer

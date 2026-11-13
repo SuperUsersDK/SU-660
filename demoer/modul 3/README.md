@@ -90,6 +90,30 @@ Workflowet skal gennemprøves lokalt med credentials før timen.
 Følg [foto-demoets vejledning](photos/README.md) for billeder, ingest og webapp.
 Denne demo bruger lokal CLIP-inference og Qdrant. Kør ingest før timen, så
 modelvægtene er downloadet, og afprøv et upload mod dine egne eksempelbilleder.
+Webappen har også et kort over vektorrummet, zero-shot tags som filtre, regning
+med embeddings, en visning af modellens input, dubletter og sammenligning af modeller.
+
+## 5. Foto-agent: CLIP-søgning + vision-model
+
+Kræver, at foto-ingest er kørt (afsnit 4).
+
+```powershell
+python "demoer/modul 3/photo_agent_demo.py"
+```
+
+Agenten skal finde de tre bedste vragbilleder med en dykker, beskrive dem og
+anbefale et forsidebillede.
+
+| Tool | Datakilde | Hvad holdet skal se |
+|---|---|---|
+| `list_photo_tags` | Qdrant payload | Hvilke zero-shot tags arkivet har |
+| `search_photos` | CLIP-tekstvektor + Qdrant | Agenten skriver selv en engelsk søgetekst og filtrerer ofte på `tag=vrag` |
+| `describe_photo` | Vision-model (`OPENAI_MODEL`) | Modellen ser selve billedet og bekræfter eller afviser kandidaten |
+
+Konsollen viser `TOOL search` og `TOOL vision`. Agenten søger typisk igen med en
+skarpere tekst, når de første kandidater ikke har en dykker med. Spørg holdet:
+Hvorfor er CLIP god til at finde kandidater, men en vision-model nødvendig for at
+bekræfte dem? Hvad koster de mange vision-kald?
 
 ## Hvad nulstilles ved genkørsel?
 
@@ -97,7 +121,8 @@ modelvægtene er downloadet, og afprøv et upload mod dine egne eksempelbilleder
 |---|---|
 | Agent med flere kilder | Genskaber `modul3_agent_tools_demo` og nulstiller `service_info` i `data/agent_demo.db` |
 | Avanceret agent | Genskaber `modul3_advanced_agent_demo` og nulstiller `services` og `escalation_policy` i `data/advanced_agent_demo.db` |
-| Foto-ingest | Genskaber `modul3_photos_demo` fra billederne i `photos/data/` |
+| Foto-ingest | Genskaber modellens collection (standard `modul3_photos_demo`) fra billederne i `photos/data/` og tagger dem |
+| Foto-tagging | Overskriver kun `tag` og `tag_score` i payload |
 | n8n | Bruger `modul3_demo`; ingest-grenen indsætter data og nulstiller ikke automatisk collectionen |
 
 Nulstillingerne giver Python-demoerne et fast udgangspunkt. Brug de nævnte
