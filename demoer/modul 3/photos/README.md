@@ -2,6 +2,12 @@
 
 Dette demo ingest'er billeder fra `data/` til Qdrant og giver en lille webside,
 hvor man kan uploade et billede og få de 5 mest lignende billeder tilbage.
+Man kan også søge med tekst, fx "a shipwreck" eller "solnedgang over havet".
+CLIP lægger tekst og billeder i samme vektorrum, så tekstvektoren søges direkte
+mod de gemte billedvektorer uden ny ingest. Tekst-til-billede scores ligger
+typisk omkring 0,2–0,35, mens billede-til-billede ofte er over 0,8. Det er
+rækkefølgen, der tæller. Engelsk virker bedst, men enkle danske sætninger virker
+ofte også.
 
 Bemærk:
 

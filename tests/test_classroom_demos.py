@@ -68,6 +68,36 @@ class ClassroomDemoTests(unittest.TestCase):
                     self.assertEqual(response.status_code, 200)
         self.assertEqual(events, ["env", "embed", "query"])
 
+    def test_photo_text_search_queries_qdrant_with_text_vector(self):
+        calls = {}
+
+        def embed_text(text):
+            calls["text"] = text
+            return [0.0, 1.0]
+
+        def query(**kwargs):
+            calls["query"] = kwargs["query"]
+            hit = SimpleNamespace(payload={"filename": "strand.jpg"}, score=0.31)
+            return SimpleNamespace(points=[hit])
+
+        photo_dir = ROOT / "demoer/modul 3/photos"
+        with patch.dict(os.environ), patch.object(sys, "path", [str(photo_dir), *sys.path]):
+            with patch("dotenv.load_dotenv", return_value=True):
+                module = runpy.run_path(str(photo_dir / "app.py"))
+            globals_ = module["search_text"].__globals__
+            with patch.dict(globals_, {
+                "text_to_vector": embed_text,
+                "QdrantClient": lambda **kwargs: SimpleNamespace(query_points=query),
+            }):
+                with TestClient(module["app"]) as client:
+                    response = client.post("/search-text", data={"query": "  <b>hund</b> på strand "})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(calls, {"text": "<b>hund</b> på strand", "query": [0.0, 1.0]})
+        self.assertIn("strand.jpg", response.text)
+        self.assertIn("&lt;b&gt;hund&lt;/b&gt;", response.text)
+        self.assertNotIn("<b>hund</b>", response.text)
+
 
 if __name__ == "__main__":
     unittest.main()
