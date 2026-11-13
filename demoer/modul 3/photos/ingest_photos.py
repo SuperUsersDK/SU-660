@@ -94,7 +94,26 @@ def parse_args() -> argparse.Namespace:
         help="CLIP-model fra Hugging Face. Standard er IMAGE_EMBED_MODEL. "
         "Hver model får sin egen collection, fx til /compare.",
     )
+    parser.add_argument(
+        "--incremental",
+        action="store_true",
+        help="Behold collectionen og tilføj kun billeder, der ikke allerede er gemt "
+        "(fx mens fetch_sample_photos.py stadig henter).",
+    )
     return parser.parse_args()
+
+
+def existing_points(client: QdrantClient, collection: str) -> dict[str, str]:
+    """Punkt-id -> filnavn for alt, der allerede ligger i collectionen."""
+    points_by_id: dict[str, str] = {}
+    offset = None
+    while True:
+        points, offset = client.scroll(
+            collection_name=collection, limit=512, offset=offset, with_payload=["filename"], with_vectors=False
+        )
+        points_by_id.update({str(point.id): str((point.payload or {}).get("filename", "")) for point in points})
+        if offset is None:
+            return points_by_id
 
 
 def main() -> None:
@@ -117,6 +136,19 @@ def main() -> None:
     vector_size: int | None = None
     total_ingested = 0
     batch_no = 0
+    known: set[str] = set()
+    removed = 0
+    if args.incremental and client.collection_exists(collection):
+        stored = existing_points(client, collection)
+        # Fjern punkter for billeder, der er slettet fra mappen siden sidst.
+        current = {path.name for path in image_paths}
+        stale = [point_id for point_id, name in stored.items() if name not in current]
+        if stale:
+            client.delete(collection_name=collection, points_selector=qdrant_models.PointIdsList(points=stale))
+            removed = len(stale)
+        known = set(stored) - set(stale)
+        # Collectionen findes allerede; den skal ikke slettes og genskabes.
+        vector_size = client.get_collection(collection).config.params.vectors.size
 
     print_section("Photo Ingest")
     print_label("KONFIGURATION", CYAN)
@@ -126,13 +158,19 @@ def main() -> None:
     print(colorize(f"Collection: {collection}", DIM))
     print(colorize(f"Image model: {model_name}", DIM))
     print(colorize(f"Batch size:  {BATCH_SIZE}", DIM))
+    if args.incremental:
+        print(colorize(f"Inkrementel: {len(known)} billeder ligger allerede i Qdrant, {removed} fjernet", DIM))
 
     for path in image_paths:
+        point_id = file_id(path)
+        if point_id in known:
+            continue
         try:
             with Image.open(path) as image:
                 vector = image_to_vector(image, model_name)
                 width, height = image.size
-        except UnidentifiedImageError:
+        except (UnidentifiedImageError, OSError):
+            # Fx et billede, der stadig er ved at blive skrevet; det tages med næste gang.
             print(colorize(f"SKIP {path.name}: ikke et gyldigt billede", BOLD, RED))
             continue
 
@@ -142,7 +180,7 @@ def main() -> None:
 
         points_batch.append(
             qdrant_models.PointStruct(
-                id=file_id(path),
+                id=point_id,
                 vector=vector,
                 payload={
                     "filename": path.name,
@@ -166,6 +204,11 @@ def main() -> None:
             )
             points_batch = []
 
+    if args.incremental and total_ingested == 0 and known:
+        print(colorize("Ingen nye billeder.", YELLOW))
+        if removed:
+            tag_collection(client, collection=collection, model_name=model_name)
+        return
     if total_ingested == 0 or vector_size is None:
         raise RuntimeError("Ingen billeder kunne embeddes.")
 

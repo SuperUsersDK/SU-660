@@ -18,7 +18,7 @@ PHOTO_DIR = ROOT / "demoer/modul 3/photos"
 if str(PHOTO_DIR) not in sys.path:
     sys.path.insert(0, str(PHOTO_DIR))
 
-from analysis import find_duplicates, mix_vectors, project, project_2d, weighted_position  # noqa: E402
+from analysis import find_duplicates, project, project_2d, weighted_position  # noqa: E402
 from image_embeddings import model_input_preview, patch_size  # noqa: E402
 from photo_store import COLLECTION_NAME, collection_for_model  # noqa: E402
 from tagging import classify, softmax  # noqa: E402
@@ -78,22 +78,6 @@ class AnalysisTests(unittest.TestCase):
         pairs = find_duplicates(names, vectors, threshold=0.97)
         self.assertEqual([(a, b) for a, b, _ in pairs], [("a.jpg", "b.jpg"), ("b.jpg", "c.jpg"), ("a.jpg", "c.jpg")])
         self.assertTrue(all(pairs[i][2] >= pairs[i + 1][2] for i in range(len(pairs) - 1)))
-
-    def test_mix_moves_towards_text_and_stays_normalized(self):
-        base, text = unit(1, 0), unit(0, 1)
-        mixed = mix_vectors(base, text, 0.5)
-        self.assertAlmostEqual(math.hypot(*mixed), 1.0)
-        self.assertGreater(mixed[1], 0)
-        away = mix_vectors(base, text, -0.5)
-        self.assertLess(away[1], 0)
-
-    def test_mix_with_reference_balances_weak_text_signal(self):
-        # Billederne spreder sig kraftigt langs x, men kun svagt langs y (teksten).
-        reference = [unit(1, 0.05 * i) for i in range(-3, 4)] + [unit(-1, 0.05)]
-        base, text = unit(1, 0), unit(0, 1)
-        raw = mix_vectors(base, text, 1.0)
-        balanced = mix_vectors(base, text, 1.0, reference=reference)
-        self.assertGreater(balanced[1], raw[1])
 
     def test_weighted_position_prefers_heavy_hits(self):
         x, y = weighted_position([(0.0, 0.0), (1.0, 1.0)], [3.0, 1.0])
@@ -156,6 +140,62 @@ class TaggingTests(unittest.TestCase):
         self.assertTrue(all(score > 0.5 for _, score in predictions))
 
 
+class SamplePhotoTests(unittest.TestCase):
+    def test_clip_filter_keeps_only_confident_own_category(self):
+        from fetch_sample_photos import accept
+
+        self.assertTrue(accept([0.1, 0.8, 0.1], own_index=1, min_confidence=0.6))
+        self.assertFalse(accept([0.1, 0.5, 0.4], own_index=1, min_confidence=0.6))
+        self.assertFalse(accept([0.7, 0.2, 0.1], own_index=1, min_confidence=0.1))
+
+    def test_cleanup_removes_only_files_made_by_the_script(self):
+        import tempfile
+
+        from fetch_sample_photos import remove_previous_samples
+
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            for name in ("bil_001_Volvo.jpg", "fugl_050_Ugle.jpg", "IMG_4160.JPG", "bil_ferie.jpg"):
+                (folder / name).write_bytes(b"x")
+            self.assertEqual(remove_previous_samples(folder), 2)
+            self.assertEqual(sorted(p.name for p in folder.iterdir()), ["IMG_4160.JPG", "bil_ferie.jpg"])
+
+    def test_resume_keeps_first_images_and_numbers_them_without_gaps(self):
+        import tempfile
+
+        from fetch_sample_photos import existing_samples, keep_first
+
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            for name in ("bil_001_A.jpg", "bil_003_C.jpg", "bil_004_D.jpg", "bil_005_E.jpg", "fly_001_X.jpg"):
+                (folder / name).write_bytes(b"x")
+            kept = keep_first(existing_samples(folder, "bil"), 3)
+            self.assertEqual([p.name for p in kept], ["bil_001_A.jpg", "bil_002_C.jpg", "bil_003_D.jpg"])
+            self.assertEqual(
+                sorted(p.name for p in folder.iterdir()),
+                ["bil_001_A.jpg", "bil_002_C.jpg", "bil_003_D.jpg", "fly_001_X.jpg"],
+            )
+
+    def test_label_set_follows_environment(self):
+        from sample_categories import SAMPLE_CATEGORIES
+        from tagging import get_labels
+
+        with patch.dict(os.environ, {"PHOTO_LABEL_SET": ""}):
+            self.assertEqual(list(get_labels()), [c.tag for c in SAMPLE_CATEGORIES])
+        with patch.dict(os.environ, {"PHOTO_LABEL_SET": "dykning"}):
+            self.assertIn("vrag", get_labels())
+        with patch.dict(os.environ, {"PHOTO_LABEL_SET": "ukendt"}):
+            with self.assertRaises(ValueError):
+                get_labels()
+
+    def test_sample_categories_are_distinct(self):
+        from sample_categories import SAMPLE_CATEGORIES
+
+        self.assertEqual(len(SAMPLE_CATEGORIES), 10)
+        self.assertEqual(len({c.tag for c in SAMPLE_CATEGORIES}), 10)
+        self.assertEqual(len({c.color for c in SAMPLE_CATEGORIES}), 10)
+
+
 class PhotoAppRouteTests(unittest.TestCase):
     def setUp(self):
         self.fake = FakeQdrant({
@@ -187,13 +227,6 @@ class PhotoAppRouteTests(unittest.TestCase):
         response = self.client.get("/duplicates?threshold=0.95")
         self.assertEqual(response.status_code, 200)
         self.assertIn("1 par over 0.95", response.text)
-
-    def test_mix_excludes_the_base_image(self):
-        response = self.client.get("/mix?base=a.jpg&text=fish&weight=1")
-        self.assertEqual(response.status_code, 200)
-        excluded = self.fake.queries[-1]["filter"].must_not[0].match.value
-        self.assertEqual(excluded, "a.jpg")
-        self.assertIn("c.jpg", response.text)
 
     def _upload(self, tag: str = "") -> str:
         import io

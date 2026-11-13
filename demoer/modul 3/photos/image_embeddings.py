@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import os
 import re
+import threading
 from functools import lru_cache
 
 from PIL import Image, ImageOps
@@ -28,10 +29,16 @@ def l2_normalize(vector: list[float]) -> list[float]:
     return [value / norm for value in vector]
 
 
+# Agenten kan kalde flere tools parallelt, og webappen kører forespørgsler i tråde.
+# To samtidige indlæsninger af samme model fejler i PyTorch, så indlæsningen låses.
+_LOAD_LOCK = threading.Lock()
+
+
 def load_model(model_name: str | None = None):
     # Navnet slås op før cachen, så en ændret IMAGE_EMBED_MODEL ikke rammer
     # en gammel cachet model.
-    return _load_model(model_name or get_image_embed_model())
+    with _LOAD_LOCK:
+        return _load_model(model_name or get_image_embed_model())
 
 
 @lru_cache(maxsize=2)

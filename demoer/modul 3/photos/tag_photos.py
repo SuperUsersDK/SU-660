@@ -1,4 +1,4 @@
-"""Tag billederne igen med de labels, der står i tagging.LABELS.
+"""Tag billederne igen med det label-sæt, PHOTO_LABEL_SET vælger (se tagging.py).
 
 Embeddings genbruges fra Qdrant, så det tager sekunder i stedet for minutter.
 Ret labels eller prompts i tagging.py, og kør scriptet igen for at se effekten.
@@ -21,7 +21,7 @@ if str(ROOT_DIR) not in sys.path:
 from tools.terminal_ui import CYAN, DIM, GREEN, colorize, print_label, print_section
 from image_embeddings import get_image_embed_model
 from photo_store import collection_for_model
-from tagging import LABELS, tag_collection
+from tagging import get_label_set_name, get_labels, tag_collection
 
 
 def main() -> None:
@@ -40,8 +40,8 @@ def main() -> None:
         raise RuntimeError(f"Collection {collection} findes ikke. Kør ingest_photos.py først.")
 
     print_section("Zero-shot tagging")
-    print_label("LABELS", CYAN)
-    for tag, prompt in LABELS.items():
+    print_label(f"LABELS ({get_label_set_name()})", CYAN)
+    for tag, prompt in get_labels().items():
         print(colorize(f"{tag:<12} \"{prompt}\"", DIM))
 
     counts = tag_collection(client, collection=collection, model_name=model_name)

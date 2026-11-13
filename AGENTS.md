@@ -23,6 +23,10 @@ kursuseksempler, heller ikke `.py`-filerne.
 - Kør `big_demo/ingest.py` før `big_demo/chat_cli.py`. Chat-CLI'en stoppes med `exit`.
 - `demoer/modul 3/photos/ingest_photos.py` kræver mindst 5 `.jpg`-billeder i
   `demoer/modul 3/photos/data/`. Mappen er git-ignoreret og må aldrig committes.
+  `photos/fetch_sample_photos.py` henter 20 billeder i hver af 10 kategorier fra
+  Wikimedia Commons (kræver internet, ca. 10 min) og genoptager en afbrudt kørsel.
+  Det rører kun billeder, det selv har hentet (`<kategori>_NNN_*.jpg`); andre billeder
+  i mappen bevares, også med `--fresh`.
 - Kør foto-ingest før `photos/tag_photos.py` og `photo_agent_demo.py`. Siden
   "Sammenlign modeller" kræver desuden `ingest_photos.py --model openai/clip-vit-large-patch14`.
 - Foto-webappen er en server: start den med

@@ -24,7 +24,7 @@ ROOT_DIR = Path(__file__).resolve().parents[3]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from analysis import find_duplicates, mix_vectors, project, weighted_position
+from analysis import find_duplicates, project, weighted_position
 from image_embeddings import (
     get_compare_embed_model,
     get_image_embed_model,
@@ -34,7 +34,8 @@ from image_embeddings import (
     text_to_vector,
 )
 import photo_store
-from tagging import LABELS
+from sample_categories import SAMPLE_CATEGORIES
+from tagging import get_labels
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -42,6 +43,9 @@ COLLECTION_NAME = photo_store.COLLECTION_NAME
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg"}
 
 TAG_COLORS = {
+    # Eksempelkategorierne (fetch_sample_photos.py)
+    **{category.tag: category.color for category in SAMPLE_CATEGORIES},
+    # Dykker-labels (PHOTO_LABEL_SET=dykning)
     "vrag": "#8c5a2b",
     "fisk": "#d96c06",
     "koralrev": "#c2185b",
@@ -118,7 +122,6 @@ def result_cards(results: list[dict], *, links: bool = True) -> str:
         if links:
             actions = (
                 "<div class='actions'>"
-                f"<a href='/mix?{urlencode({'base': filename})}'>Bland med tekst</a>"
                 f"<a href='/model-view?{urlencode({'file': filename})}'>Hvad ser modellen?</a>"
                 "</div>"
             )
@@ -137,9 +140,20 @@ def result_cards(results: list[dict], *, links: bool = True) -> str:
     return "<div class='grid'>" + "".join(cards) + "</div>"
 
 
-def tag_options(selected: str = "", *, autosubmit: bool = False) -> str:
+def available_tags(counts: dict[str, int]) -> list[str]:
+    """Tags, der findes i Qdrant, i label-sættets rækkefølge; ellers label-sættet."""
+    labels = list(get_labels())
+    if not counts:
+        return labels
+    return [tag for tag in labels if tag in counts] + sorted(tag for tag in counts if tag not in labels)
+
+
+def tag_options(selected: str = "", *, tags: list[str] | None = None, autosubmit: bool = False) -> str:
+    tags = list(tags if tags is not None else get_labels())
+    if selected and selected not in tags:
+        tags.append(selected)
     options = ["<option value=''>Alle tags</option>"]
-    for tag in LABELS:
+    for tag in tags:
         chosen = " selected" if tag == selected else ""
         options.append(f"<option value='{esc(tag)}'{chosen}>{esc(tag)}</option>")
     auto = " data-autosubmit" if autosubmit else ""
@@ -235,7 +249,6 @@ form.current { outline: 2px solid rgba(17,100,102,.35); outline-offset: 6px; bor
 NAV = [
     ("/", "Søg"),
     ("/map", "Kort"),
-    ("/mix", "Bland billede + tekst"),
     ("/duplicates", "Dubletter"),
     ("/compare", "Sammenlign modeller"),
 ]
@@ -352,6 +365,7 @@ def render_page(
         )
 
     counts = tag_counts()
+    tags = available_tags(counts)
     counts_html = ""
     if counts:
         chips = "".join(
@@ -389,15 +403,15 @@ def render_page(
           <input type="hidden" name="upload_id" value="{esc(state.upload_id)}" />
           <input type="hidden" name="query" value="{esc(state.query)}" />
           <input type="hidden" name="text_tag" value="{esc(state.text_tag)}" />
-          {tag_options(state.image_tag, autosubmit=True)}
+          {tag_options(state.image_tag, tags=tags, autosubmit=True)}
           <button type="submit">Find lignende billeder</button>
         </form>
         <form action="/search-text" method="post" class="{'current' if mode == 'text' else ''}">
           <input type="text" name="query" value="{esc(state.query)}"
-                 placeholder="fx 'a shipwreck' eller 'solnedgang over havet'" required />
+                 placeholder="fx 'a red sports car' eller 'en svamp i skoven'" required />
           <input type="hidden" name="upload_id" value="{esc(state.upload_id)}" />
           <input type="hidden" name="image_tag" value="{esc(state.image_tag)}" />
-          {tag_options(state.text_tag, autosubmit=True)}
+          {tag_options(state.text_tag, tags=tags, autosubmit=True)}
           <button type="submit">Søg med tekst</button>
         </form>
         {error_html}
@@ -552,89 +566,8 @@ def model_view(file: str) -> str:
           <img src="{image_url(path.name)}" alt="{esc(path.name)}" /></div>
         {view}
       </div>
-      <p><a href="/mix?{urlencode({'base': path.name})}">Bland dette billede med tekst</a></p>
     """
     return layout("Hvad ser modellen?", body, active="")
-
-
-# --------------------------------------------------------------------------- #
-# Regning med embeddings
-# --------------------------------------------------------------------------- #
-
-@app.get("/mix", response_class=HTMLResponse)
-def mix(base: str = "", text: str = "", weight: float = 1.0) -> str:
-    weight = max(-2.0, min(2.0, weight))
-    intro = """
-      <h1>Bland billede og tekst</h1>
-      <p>Regning med embeddings: <code>billede + vægt × tekst</code>. Positiv vægt trækker
-      resultatet mod teksten, negativ vægt trækker væk fra den.</p>
-      <p class="hint">Tekst og billeder ligger forskudt i CLIP-rummet, så tekstens ligheder
-      spreder sig langt mindre end billedernes. Begge led skaleres derfor efter deres spredning
-      over samlingen; vægt 1 betyder, at billede og tekst trækker lige meget.</p>
-    """
-    client = get_client()
-    collection = default_collection()
-
-    if not base:
-        try:
-            photos = photo_store.fetch_all(client, collection=collection, with_vectors=False)
-        except Exception as exc:
-            return layout("Bland", intro + f"<p class='error'>Kunne ikke hente billeder: {esc(exc)}</p>", active="/mix")
-        step = max(1, len(photos) // 24)
-        picks = photos[::step][:24]
-        cards = "".join(
-            f"<a class='card' href='/mix?{urlencode({'base': p.filename})}'>"
-            f"<img src='{thumb_url(p.filename)}' alt='{esc(p.filename)}' loading='lazy' /></a>"
-            for p in picks
-        )
-        body = intro + f"""
-          <div class="panel">
-            <p>Vælg et billede at tage udgangspunkt i, eller brug <em>Bland med tekst</em>
-            på et søgeresultat.</p>
-            <div class="grid">{cards}</div>
-          </div>
-        """
-        return layout("Bland", body, active="/mix")
-
-    base_path = library_path(base)
-    results_html = ""
-    error_html = ""
-    base_vector = photo_store.get_vector(client, base_path.name, collection=collection)
-    if base_vector is None:
-        error_html = "<p class='error'>Billedet findes ikke i Qdrant. Kør ingest_photos.py.</p>"
-    elif text.strip():
-        reference = [p.vector for p in photo_store.fetch_all(client, collection=collection)]
-        mixed = mix_vectors(base_vector, text_to_vector(text.strip()), weight, reference=reference)
-        results = photo_store.search(client, mixed, collection=collection, limit=10, exclude_filename=base_path.name)
-        sign = "+" if weight >= 0 else "−"
-        results_html = (
-            f"<h2>billede {sign} {abs(weight):.2f} × “{esc(text.strip())}”</h2>"
-            + result_cards(results)
-        )
-    else:
-        results = photo_store.search(client, base_vector, collection=collection, limit=10, exclude_filename=base_path.name)
-        results_html = "<h2>Uden tekst: billedets nærmeste naboer</h2>" + result_cards(results)
-
-    body = intro + f"""
-      <div class="panel">
-        <div class="row">
-          <div class="preview"><h2>Udgangspunkt</h2>
-            <img src="{thumb_url(base_path.name)}" alt="{esc(base_path.name)}" />
-            <p class="hint">{esc(base_path.name)}</p></div>
-          <form action="/mix" method="get" style="flex:1">
-            <input type="hidden" name="base" value="{esc(base_path.name)}" />
-            <input type="text" name="text" value="{esc(text)}" placeholder="fx 'with a scuba diver' eller 'at sunset'" />
-            <label class="hint">vægt
-              <input type="number" name="weight" value="{weight}" step="0.25" min="-2" max="2" style="width:90px" />
-            </label>
-            <button type="submit">Bland</button>
-          </form>
-        </div>
-        {error_html}
-        {results_html}
-      </div>
-    """
-    return layout("Bland", body, active="/mix")
 
 
 # --------------------------------------------------------------------------- #
@@ -1105,7 +1038,7 @@ def map_page() -> str:
           <button type="button" data-mode="3d-pca">3D PCA</button>
         </div>
         <form id="mapsearch">
-          <input type="text" id="q" placeholder="Søg med tekst, fx 'a shipwreck' eller 'sunset'" />
+          <input type="text" id="q" placeholder="Søg med tekst, fx 'a mushroom in the forest' eller 'a butterfly'" />
           <button type="submit">Vis på kortet</button>
           <button type="button" id="reset">Nulstil</button>
         </form>
@@ -1125,7 +1058,7 @@ def map_page() -> str:
 # --------------------------------------------------------------------------- #
 
 @app.get("/duplicates", response_class=HTMLResponse)
-def duplicates(threshold: float = 0.95) -> str:
+def duplicates(threshold: float = 0.9) -> str:
     threshold = max(0.5, min(0.999, threshold))
     try:
         photos = photo_store.fetch_all(get_client(), collection=default_collection())
@@ -1216,7 +1149,7 @@ def compare(q: str = "", file: str = "") -> str:
       men er langsommere og kræver mere hukommelse.</p>
       <div class="panel">
         <form action="/compare" method="get">
-          <input type="text" name="q" value="{esc(q)}" placeholder="fx 'a lionfish' eller 'two divers on a wreck'" />
+          <input type="text" name="q" value="{esc(q)}" placeholder="fx 'an owl' eller 'a gothic cathedral'" />
           <button type="submit">Sammenlign</button>
         </form>
         {base_html}

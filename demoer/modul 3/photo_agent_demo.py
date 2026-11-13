@@ -29,7 +29,7 @@ for path in (ROOT_DIR, PHOTOS_DIR):
 from tools.terminal_ui import BLUE, BOLD, CYAN, DIM, GREEN, MAGENTA, YELLOW, clear_screen, colorize, print_label, print_section, prompt_to_continue
 from image_embeddings import get_image_embed_model, text_to_vector
 import photo_store
-from tagging import LABELS
+from tagging import get_label_set_name, get_labels
 
 DATA_DIR = PHOTOS_DIR / "data"
 
@@ -81,12 +81,13 @@ def list_photo_tags() -> str:
 def search_photos(description: str, tag: str = "", limit: int = 5) -> str:
     """Search the photo library with CLIP. Write the description in English for best results.
 
-    Optionally filter on one tag: vrag, fisk, koralrev, dykker, smådyr, båd, mennesker, solnedgang.
+    Optionally filter on one tag; call list_photo_tags to see which tags exist.
     Returns filenames with similarity scores (text-to-image scores are typically 0.2-0.35).
     """
     tag = tag.strip()
-    if tag and tag not in LABELS:
-        return f"[photos] Ukendt tag '{tag}'. Gyldige tags: {', '.join(LABELS)}"
+    labels = get_labels()
+    if tag and tag not in labels:
+        return f"[photos] Ukendt tag '{tag}'. Gyldige tags: {', '.join(labels)}"
     print_status("TOOL search", f"CLIP-søgning: '{description}'" + (f" (tag={tag})" if tag else ""), MAGENTA)
     hits = photo_store.search(
         get_client(),
@@ -126,13 +127,28 @@ def describe_photo(filename: str) -> str:
     return f"[vision {path.name}] {llm.invoke([message]).content}"
 
 
+# Spørgsmålet passer til det label-sæt, billederne er tagget med (PHOTO_LABEL_SET).
+QUESTIONS = {
+    "eksempler": (
+        "Find de tre bedste billeder af fugle og de tre bedste af insekter, "
+        "beskriv kort hvad der ses på hvert af dem, og anbefal ét af dem som forsidebillede "
+        "til en plakat om dyreliv. Svar på dansk."
+    ),
+    "dykning": (
+        "Find de tre bedste billeder af skibsvrag, hvor der også er en dykker med, "
+        "beskriv hvad der ses på hvert af dem, og anbefal ét af dem som forsidebillede "
+        "til et dykkerkursus. Svar på dansk."
+    ),
+}
+
+
 def build_agent() -> Any:
     llm = ChatOpenAI(model=get_chat_model(), temperature=0, reasoning_effort="none")
     return create_agent(
         llm,
         tools=[list_photo_tags, search_photos, describe_photo],
         system_prompt=(
-            "Du er en fotoassistent for et billedarkiv med dykkerbilleder. "
+            "Du er en fotoassistent for et billedarkiv. "
             "Brug search_photos til at finde kandidater (beskrivelser på engelsk virker bedst), "
             "og brug describe_photo til at se på billederne, før du udtaler dig om dem. "
             "Påstå aldrig noget om et billede, du ikke har fået beskrevet. "
@@ -161,11 +177,7 @@ def main() -> None:
         raise RuntimeError("Foto-collectionen findes ikke. Kør først: python \"demoer/modul 3/photos/ingest_photos.py\"")
 
     agent = build_agent()
-    question = (
-        "Find de tre bedste billeder af skibsvrag, hvor der også er en dykker med, "
-        "beskriv hvad der ses på hvert af dem, og anbefal ét af dem som forsidebillede "
-        "til et dykkerkursus. Svar på dansk."
-    )
+    question = QUESTIONS[get_label_set_name()]
 
     print_section("Foto-agent")
     print_label("WORKFLOW", CYAN)

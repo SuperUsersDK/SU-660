@@ -88,8 +88,16 @@ Workflowet skal gennemprøves lokalt med credentials før timen.
 ## 4. Billedlighed med CLIP
 
 Følg [foto-demoets vejledning](photos/README.md) for billeder, ingest og webapp.
-Denne demo bruger lokal CLIP-inference og Qdrant. Kør ingest før timen, så
-modelvægtene er downloadet, og afprøv et upload mod dine egne eksempelbilleder.
+Denne demo bruger lokal CLIP-inference og Qdrant. Har du ikke egne billeder, henter
+`photos/fetch_sample_photos.py` 20 billeder i hver af 10 tydelige kategorier fra
+Wikimedia Commons (ca. 10 minutter):
+
+```powershell
+python "demoer/modul 3/photos/fetch_sample_photos.py"
+python "demoer/modul 3/photos/ingest_photos.py"
+```
+
+Kør begge før timen, så billeder og modelvægte er downloadet.
 Webappen har også et kort over vektorrummet, zero-shot tags som filtre, regning
 med embeddings, en visning af modellens input, dubletter og sammenligning af modeller.
 
@@ -101,19 +109,21 @@ Kræver, at foto-ingest er kørt (afsnit 4).
 python "demoer/modul 3/photo_agent_demo.py"
 ```
 
-Agenten skal finde de tre bedste vragbilleder med en dykker, beskrive dem og
-anbefale et forsidebillede.
+Med eksempelbillederne (`PHOTO_LABEL_SET=eksempler`) skal agenten finde de tre
+bedste billeder af fugle og af insekter, beskrive dem og anbefale et forsidebillede
+til en plakat om dyreliv. Med `PHOTO_LABEL_SET=dykning` spørger den i stedet efter
+vragbilleder med en dykker.
 
 | Tool | Datakilde | Hvad holdet skal se |
 |---|---|---|
 | `list_photo_tags` | Qdrant payload | Hvilke zero-shot tags arkivet har |
-| `search_photos` | CLIP-tekstvektor + Qdrant | Agenten skriver selv en engelsk søgetekst og filtrerer ofte på `tag=vrag` |
+| `search_photos` | CLIP-tekstvektor + Qdrant | Agenten skriver selv en engelsk søgetekst og kan filtrere på et tag |
 | `describe_photo` | Vision-model (`OPENAI_MODEL`) | Modellen ser selve billedet og bekræfter eller afviser kandidaten |
 
-Konsollen viser `TOOL search` og `TOOL vision`. Agenten søger typisk igen med en
-skarpere tekst, når de første kandidater ikke har en dykker med. Spørg holdet:
-Hvorfor er CLIP god til at finde kandidater, men en vision-model nødvendig for at
-bekræfte dem? Hvad koster de mange vision-kald?
+Konsollen viser `TOOL search` og `TOOL vision`. Agenten kalder ofte flere tools
+parallelt, fx én søgning efter fugle og én efter insekter, og beskriver derefter
+kandidaterne. Spørg holdet: Hvorfor er CLIP god til at finde kandidater, men en
+vision-model nødvendig for at bekræfte dem? Hvad koster de mange vision-kald?
 
 ## Hvad nulstilles ved genkørsel?
 

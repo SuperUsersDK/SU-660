@@ -41,6 +41,15 @@ def _scale(raw: np.ndarray, dims: int) -> tuple[np.ndarray, np.ndarray, np.ndarr
     return (raw - offset) / scale, offset, scale
 
 
+def tsne_perplexity(n: int) -> float:
+    """Perplexity er groft sagt, hvor mange naboer hvert punkt tager hensyn til.
+
+    Den skal være mindre end en typisk klynge, ellers flyder klyngerne sammen.
+    n/20 giver fx 10 for 200 billeder (20 pr. kategori) og 30 for store samlinger.
+    """
+    return float(min(30.0, max(5.0, n / 20), (n - 1) / 3))
+
+
 def project(
     vectors: list[list[float]],
     *,
@@ -91,7 +100,7 @@ def project(
         n_components=dims,
         metric="cosine",
         init="pca",
-        perplexity=min(30.0, (len(data) - 1) / 3),
+        perplexity=tsne_perplexity(len(data)),
         random_state=seed,
     ).fit_transform(data.astype(np.float32))
     scaled, _, _ = _scale(raw.astype(np.float64), dims)
@@ -123,7 +132,7 @@ def find_duplicates(
     filenames: list[str],
     vectors: list[list[float]],
     *,
-    threshold: float = 0.95,
+    threshold: float = 0.9,
     limit: int = 60,
 ) -> list[tuple[str, str, float]]:
     """Find billedpar med cosine-lighed over tærsklen, højeste først.
@@ -143,34 +152,3 @@ def find_duplicates(
         (filenames[i], filenames[j], float(score))
         for i, j, score in zip(pairs_rows, pairs_cols, pairs_scores)
     ]
-
-
-def mix_vectors(
-    base: list[float],
-    direction: list[float],
-    weight: float,
-    *,
-    reference: list[list[float]] | None = None,
-) -> list[float]:
-    """Regning med embeddings: billede + vægt × tekst, normaliseret igen.
-
-    Negativ vægt trækker billedet væk fra teksten ("minus solnedgang").
-
-    Billede-billede-ligheder spreder sig 4-7 gange mere end tekst-billede-ligheder
-    (tekst og billeder ligger forskudt i CLIP-rummet, "the modality gap"). Med
-    `reference` (alle billedvektorer) skaleres begge led efter deres spredning over
-    samlingen, så vægt 1 betyder, at billedet og teksten trækker lige meget.
-    """
-    base_arr = np.asarray(base, dtype=np.float64)
-    direction_arr = np.asarray(direction, dtype=np.float64)
-    if reference is not None and len(reference) > 1:
-        matrix = np.asarray(reference, dtype=np.float64)
-        base_spread = float((matrix @ base_arr).std()) or 1.0
-        direction_spread = float((matrix @ direction_arr).std()) or 1.0
-        base_arr = base_arr / base_spread
-        direction_arr = direction_arr / direction_spread
-    mixed = base_arr + weight * direction_arr
-    norm = np.linalg.norm(mixed)
-    if norm == 0:
-        return list(map(float, base))
-    return [float(value) for value in mixed / norm]
