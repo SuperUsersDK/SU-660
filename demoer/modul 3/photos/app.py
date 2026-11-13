@@ -24,7 +24,7 @@ ROOT_DIR = Path(__file__).resolve().parents[3]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from analysis import find_duplicates, mix_vectors, project_2d, weighted_position
+from analysis import find_duplicates, mix_vectors, project, weighted_position
 from image_embeddings import (
     get_compare_embed_model,
     get_image_embed_model,
@@ -37,6 +37,7 @@ import photo_store
 from tagging import LABELS
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 COLLECTION_NAME = photo_store.COLLECTION_NAME
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg"}
 
@@ -61,6 +62,8 @@ load_env()
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 app = FastAPI(title="Photo Similarity Demo")
 app.mount("/data", StaticFiles(directory=str(DATA_DIR)), name="data")
+# Three.js ligger lokalt, så 3D-kortet også virker uden internet i klasselokalet.
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 def get_qdrant_url() -> str:
@@ -638,97 +641,149 @@ def mix(base: str = "", text: str = "", weight: float = 1.0) -> str:
 # Kort over vektorrummet
 # --------------------------------------------------------------------------- #
 
-_MAP_CACHE: dict[tuple[str, int], dict] = {}
+_MAP_CACHE: dict[tuple, dict] = {}
+MAP_MODES = {"2d-tsne": (2, "tsne"), "3d-tsne": (3, "tsne"), "3d-pca": (3, "pca")}
 
 
-def map_data() -> dict:
-    """Hent alle vektorer og projicér dem til 2D. Resultatet caches pr. collection og antal."""
+def map_data(dims: int = 2, method: str = "tsne") -> dict:
+    """Hent alle vektorer og projicér dem. Resultatet caches pr. collection, antal og metode."""
     collection = default_collection()
     photos = photo_store.fetch_all(get_client(), collection=collection)
-    key = (collection, len(photos))
+    key = (collection, len(photos), dims, method)
     if key not in _MAP_CACHE:
-        coords = project_2d([photo.vector for photo in photos])
-        _MAP_CACHE.clear()
+        if any(cached[:2] != key[:2] for cached in _MAP_CACHE):
+            _MAP_CACHE.clear()
+        projection = project([photo.vector for photo in photos], dims=dims, method=method)
         _MAP_CACHE[key] = {
-            "points": [
-                {"filename": photo.filename, "x": x, "y": y, "tag": photo.tag}
-                for photo, (x, y) in zip(photos, coords)
-            ],
+            "projection": projection,
+            "payload": {
+                "dims": dims,
+                "method": method,
+                "explained": projection.explained_variance,
+                "points": [
+                    {"filename": photo.filename, "tag": photo.tag, "pos": list(pos)}
+                    for photo, pos in zip(photos, projection.coords)
+                ],
+            },
         }
     return _MAP_CACHE[key]
 
 
+def map_mode(mode: str) -> tuple[int, str]:
+    if mode not in MAP_MODES:
+        raise HTTPException(status_code=400, detail=f"Ukendt visning: {mode}")
+    return MAP_MODES[mode]
+
+
 @app.get("/api/map")
-def api_map() -> JSONResponse:
+def api_map(mode: str = "2d-tsne") -> JSONResponse:
+    dims, method = map_mode(mode)
     try:
-        return JSONResponse(map_data())
+        return JSONResponse(map_data(dims, method)["payload"])
     except Exception as exc:
         return JSONResponse({"error": f"Kunne ikke lave kortet: {exc}"}, status_code=500)
 
 
 @app.get("/api/map/search")
-def api_map_search(q: str, k: int = 10) -> JSONResponse:
-    data = map_data()
-    positions = {point["filename"]: (point["x"], point["y"]) for point in data["points"]}
-    hits = photo_store.search(get_client(), text_to_vector(q), collection=default_collection(), limit=max(1, min(k, 50)))
-    # Skarpe vægte (som CLIPs egen softmax), så det bedste hit trækker mest.
-    top = max((hit["score"] for hit in hits), default=0.0)
-    weights = [math.exp(100 * (hit["score"] - top)) for hit in hits]
-    known = [(positions[hit["filename"]], weight) for hit, weight in zip(hits, weights) if hit["filename"] in positions]
-    position = weighted_position([pos for pos, _ in known], [w for _, w in known]) if known else (0.5, 0.5)
-    return JSONResponse({"hits": hits, "position": position})
+def api_map_search(q: str, k: int = 10, mode: str = "2d-tsne") -> JSONResponse:
+    dims, method = map_mode(mode)
+    data = map_data(dims, method)
+    positions = {point["filename"]: tuple(point["pos"]) for point in data["payload"]["points"]}
+    query_vector = text_to_vector(q)
+    hits = photo_store.search(get_client(), query_vector, collection=default_collection(), limit=max(1, min(k, 50)))
+
+    # PCA er lineær, så søgeteksten kan placeres præcist. t-SNE kan ikke placere nye
+    # punkter; der bruges et vægtet gennemsnit af de bedste hits (skarpe vægte, som
+    # CLIPs egen softmax, så det bedste hit trækker mest).
+    exact = data["projection"].transform(query_vector)
+    if exact is not None:
+        position = exact
+    else:
+        top = max((hit["score"] for hit in hits), default=0.0)
+        weights = [math.exp(100 * (hit["score"] - top)) for hit in hits]
+        known = [(positions[hit["filename"]], w) for hit, w in zip(hits, weights) if hit["filename"] in positions]
+        center = (0.5,) * dims if dims == 2 else (0.0,) * dims
+        position = weighted_position([p for p, _ in known], [w for _, w in known]) if known else center
+    return JSONResponse({"hits": hits, "position": list(position), "exact": exact is not None})
 
 
-MAP_SCRIPT = """
-const stage = document.getElementById('stage');
-const world = document.getElementById('world');
-const status = document.getElementById('status');
-const legend = document.getElementById('legend');
+MAP_SCRIPT = r"""
 const COLORS = %COLORS%;
-const THUMB = 44;
-let scale = 1, tx = 0, ty = 0, nodes = {}, activeTag = null;
+const statusEl = document.getElementById('status');
+const legendEl = document.getElementById('legend');
+const stage2d = document.getElementById('stage2d');
+const stage3d = document.getElementById('stage3d');
+const autoRow = document.getElementById('autorow');
+const autoBox = document.getElementById('autorotate');
+const views = {};
+let mode = '2d-tsne', query = null, activeTag = null, info = {};
 
-function apply() { world.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`; }
-
-stage.addEventListener('wheel', (e) => {
-  e.preventDefault();
-  const r = stage.getBoundingClientRect();
-  const mx = e.clientX - r.left, my = e.clientY - r.top;
-  const next = Math.min(10, Math.max(0.5, scale * Math.exp(-e.deltaY * 0.0015)));
-  tx = mx - (mx - tx) * next / scale; ty = my - (my - ty) * next / scale; scale = next; apply();
-}, { passive: false });
-
-let drag = null;
-stage.addEventListener('pointerdown', (e) => { drag = { x: e.clientX - tx, y: e.clientY - ty, moved: false }; });
-window.addEventListener('pointermove', (e) => {
-  if (!drag) return;
-  const nx = e.clientX - drag.x, ny = e.clientY - drag.y;
-  if (Math.abs(nx - tx) + Math.abs(ny - ty) > 2) drag.moved = true;
-  tx = nx; ty = ny; apply();
-});
-window.addEventListener('pointerup', () => { setTimeout(() => { drag = null; }, 0); });
-
-function place(x, y) {
-  const w = stage.clientWidth - THUMB, h = stage.clientHeight - THUMB;
-  return [x * w, y * h];
-}
-
-function setDim(predicate) {
-  for (const [name, el] of Object.entries(nodes)) el.classList.toggle('dim', predicate ? !predicate(name, el) : false);
-}
-
-async function load() {
-  status.textContent = 'Beregner t-SNE over alle vektorer …';
-  const res = await fetch('/api/map');
+async function getJSON(url) {
+  const res = await fetch(url);
   const data = await res.json();
-  if (data.error) { status.textContent = data.error; return; }
+  if (!res.ok || data.error) throw new Error(data.error || data.detail || res.statusText);
+  return data;
+}
+
+function baseStatus(data) {
+  let text = `${data.points.length} billeder.`;
+  if (data.method === 'pca' && data.explained) {
+    const parts = data.explained.map((v) => Math.round(v * 100) + '%');
+    const total = Math.round(data.explained.reduce((a, b) => a + b, 0) * 100);
+    text += ` PCA-akserne viser ${parts.join(' + ')} = ${total}% af variationen i de oprindelige vektorer.`;
+  }
+  text += data.dims === 3
+    ? ' Træk for at rotere, scroll for at zoome, højreklik/shift-træk for at flytte. Klik på et billede.'
+    : ' Scroll for at zoome, træk for at flytte, klik på et billede.';
+  return text;
+}
+
+function buildLegend(points) {
+  if (legendEl.childElementCount) return;
   const counts = {};
+  for (const p of points) counts[p.tag] = (counts[p.tag] || 0) + 1;
+  for (const [tag, color] of Object.entries(COLORS)) {
+    if (!counts[tag]) continue;
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'legend'; b.style.background = color;
+    b.textContent = `${tag} (${counts[tag]})`;
+    b.onclick = () => { activeTag = activeTag === tag ? null : tag; query = null; refresh(); };
+    legendEl.appendChild(b);
+  }
+}
+
+// ---------------------------------------------------------------- 2D
+function create2D(el, data) {
+  const world = document.createElement('div');
+  world.className = 'world';
+  el.appendChild(world);
+  const THUMB = 44;
+  let scale = 1, tx = 0, ty = 0, drag = null;
+  const nodes = {};
+  const apply = () => { world.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`; };
+  const place = (x, y) => [x * (el.clientWidth - THUMB), y * (el.clientHeight - THUMB)];
+
+  el.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const r = el.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const next = Math.min(10, Math.max(0.5, scale * Math.exp(-e.deltaY * 0.0015)));
+    tx = mx - (mx - tx) * next / scale; ty = my - (my - ty) * next / scale; scale = next; apply();
+  }, { passive: false });
+  el.addEventListener('pointerdown', (e) => { drag = { x: e.clientX - tx, y: e.clientY - ty, moved: false }; });
+  window.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const nx = e.clientX - drag.x, ny = e.clientY - drag.y;
+    if (Math.abs(nx - tx) + Math.abs(ny - ty) > 2) drag.moved = true;
+    tx = nx; ty = ny; apply();
+  });
+  window.addEventListener('pointerup', () => { setTimeout(() => { drag = null; }, 0); });
+
   for (const p of data.points) {
-    const [left, top] = place(p.x, p.y);
+    const [left, top] = place(p.pos[0], p.pos[1]);
     const a = document.createElement('a');
     a.href = '/model-view?file=' + encodeURIComponent(p.filename);
-    a.className = 'pt';
-    a.dataset.tag = p.tag || '';
+    a.className = 'pt'; a.dataset.tag = p.tag || '';
     a.style.left = left + 'px'; a.style.top = top + 'px';
     a.style.borderColor = COLORS[p.tag] || '#888';
     a.title = p.filename + (p.tag ? ' · ' + p.tag : '');
@@ -736,68 +791,296 @@ async function load() {
     const img = document.createElement('img');
     img.src = '/thumb/' + encodeURIComponent(p.filename); img.loading = 'lazy'; img.alt = p.filename;
     a.appendChild(img); world.appendChild(a); nodes[p.filename] = a;
-    counts[p.tag] = (counts[p.tag] || 0) + 1;
   }
-  for (const [tag, color] of Object.entries(COLORS)) {
-    if (!counts[tag]) continue;
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'legend'; b.style.background = color;
-    b.textContent = `${tag} (${counts[tag]})`;
-    b.onclick = () => {
-      activeTag = activeTag === tag ? null : tag;
-      clearSearch();
-      setDim(activeTag ? (name, el) => el.dataset.tag === activeTag : null);
+
+  return {
+    show() { el.hidden = false; }, hide() { el.hidden = true; },
+    reset() { scale = 1; tx = 0; ty = 0; apply(); },
+    highlight({ hits, tag, marker }) {
+      for (const [name, node] of Object.entries(nodes)) {
+        const isHit = hits ? hits.has(name) : false;
+        const dim = (hits && !isHit) || (tag && node.dataset.tag !== tag);
+        node.classList.toggle('dim', Boolean(dim));
+        node.classList.toggle('hit', isHit);
+      }
+      const old = world.querySelector('.marker'); if (old) old.remove();
+      if (marker) {
+        const [left, top] = place(marker.pos[0], marker.pos[1]);
+        const m = document.createElement('div');
+        m.className = 'marker'; m.textContent = '“' + marker.label + '”';
+        m.style.left = (left + THUMB / 2) + 'px'; m.style.top = (top + THUMB / 2) + 'px';
+        world.appendChild(m);
+      }
+    },
+  };
+}
+
+// ---------------------------------------------------------------- 3D
+async function create3D(el, data) {
+  const THREE = await import('three');
+  const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  el.appendChild(renderer.domElement);
+  const tooltip = document.createElement('div');
+  tooltip.className = 'tooltip'; tooltip.hidden = true; el.appendChild(tooltip);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color('#0d2b33');
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.01, 100);
+  const HOME = new THREE.Vector3(0, 0.4, 2.6);
+  camera.position.copy(HOME);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.autoRotate = autoBox.checked;
+  controls.autoRotateSpeed = 0.7;
+  controls.minDistance = 0.2; controls.maxDistance = 10;
+  controls.addEventListener('start', () => { controls.autoRotate = false; autoBox.checked = false; });
+  let targetGoal = new THREE.Vector3();
+
+  // Et svagt omrids af rummet giver dybdefornemmelse, når kortet roteres.
+  const box = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(2, 2, 2)),
+    new THREE.LineBasicMaterial({ color: 0x3a6670, transparent: true, opacity: 0.5 }),
+  );
+  scene.add(box);
+
+  if (data.method === 'pca') {
+    const axes = [[1, 0, 0, '#e57373'], [0, 1, 0, '#81c784'], [0, 0, 1, '#64b5f6']];
+    axes.forEach(([x, y, z, color], i) => {
+      const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-x, -y, -z), new THREE.Vector3(x, y, z)]);
+      scene.add(new THREE.Line(geometry, new THREE.LineBasicMaterial({ color })));
+      const pct = data.explained ? ` (${Math.round(data.explained[i] * 100)}%)` : '';
+      const label = textSprite(THREE, `PC${i + 1}${pct}`, color, '#0d2b33');
+      label.position.set(x * 1.15, y * 1.15, z * 1.15);
+      label.scale.multiplyScalar(0.6);
+      scene.add(label);
+    });
+  }
+
+  const SIZE = 0.085;
+  const sprites = [];
+  const byName = {};
+  for (const p of data.points) {
+    const material = new THREE.SpriteMaterial({ color: COLORS[p.tag] || '#888888', transparent: true });
+    const sprite = new THREE.Sprite(material);
+    sprite.position.set(p.pos[0], p.pos[1], p.pos[2]);
+    sprite.scale.set(SIZE, SIZE, 1);
+    sprite.userData = p;
+    scene.add(sprite); sprites.push(sprite); byName[p.filename] = sprite;
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas'); c.width = c.height = 96;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = COLORS[p.tag] || '#888888'; ctx.fillRect(0, 0, 96, 96);
+      const s = Math.min(img.width, img.height);
+      ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 6, 6, 84, 84);
+      const texture = new THREE.CanvasTexture(c);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      material.map = texture; material.color.set('#ffffff'); material.needsUpdate = true;
     };
-    legend.appendChild(b);
+    img.src = '/thumb/' + encodeURIComponent(p.filename);
   }
-  status.textContent = `${data.points.length} billeder. Scroll for at zoome, træk for at flytte, klik på et billede.`;
+
+  const markerGroup = new THREE.Group();
+  scene.add(markerGroup);
+
+  function resize() {
+    const w = el.clientWidth, h = el.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h; camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(resize).observe(el);
+  resize();
+
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  let hovered = null, downAt = null;
+  renderer.domElement.addEventListener('pointermove', (e) => {
+    const r = renderer.domElement.getBoundingClientRect();
+    pointer.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    raycaster.setFromCamera(pointer, camera);
+    const hit = raycaster.intersectObjects(sprites).find((h) => h.object.material.opacity > 0.5);
+    hovered = hit ? hit.object : null;
+    renderer.domElement.style.cursor = hovered ? 'pointer' : 'grab';
+    if (hovered) {
+      const p = hovered.userData;
+      tooltip.hidden = false;
+      tooltip.innerHTML = '';
+      const img = document.createElement('img'); img.src = '/thumb/' + encodeURIComponent(p.filename);
+      const label = document.createElement('div'); label.textContent = p.filename + (p.tag ? ' · ' + p.tag : '');
+      tooltip.append(img, label);
+      tooltip.style.left = Math.min(e.clientX - r.left + 14, r.width - 180) + 'px';
+      tooltip.style.top = Math.min(e.clientY - r.top + 14, r.height - 200) + 'px';
+    } else {
+      tooltip.hidden = true;
+    }
+  });
+  renderer.domElement.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; });
+  renderer.domElement.addEventListener('pointerup', (e) => {
+    if (!downAt || !hovered) return;
+    const moved = Math.abs(e.clientX - downAt[0]) + Math.abs(e.clientY - downAt[1]);
+    if (moved < 5) window.location.href = '/model-view?file=' + encodeURIComponent(hovered.userData.filename);
+  });
+  renderer.domElement.addEventListener('pointerleave', () => { tooltip.hidden = true; hovered = null; });
+
+  let visible = true;
+  (function animate() {
+    requestAnimationFrame(animate);
+    if (!visible) return;
+    controls.target.lerp(targetGoal, 0.08);
+    controls.update();
+    renderer.render(scene, camera);
+  })();
+
+  return {
+    show() {
+      el.hidden = false; visible = true; autoRow.hidden = false;
+      autoBox.onchange = () => { controls.autoRotate = autoBox.checked; };
+      controls.autoRotate = autoBox.checked;
+      resize();
+    },
+    hide() { el.hidden = true; visible = false; autoRow.hidden = true; },
+    reset() { camera.position.copy(HOME); targetGoal.set(0, 0, 0); },
+    highlight({ hits, tag, marker }) {
+      for (const sprite of sprites) {
+        const name = sprite.userData.filename;
+        const isHit = hits ? hits.has(name) : false;
+        const dim = (hits && !isHit) || (tag && sprite.userData.tag !== tag);
+        sprite.material.opacity = dim ? 0.1 : 1;
+        sprite.material.depthWrite = !dim;
+        const s = isHit ? SIZE * 2 : SIZE;
+        sprite.scale.set(s, s, 1);
+        sprite.renderOrder = isHit ? 10 : 0;
+      }
+      markerGroup.clear();
+      targetGoal.set(0, 0, 0);
+      if (marker) {
+        const pos = new THREE.Vector3(marker.pos[0], marker.pos[1], marker.pos[2]);
+        const label = textSprite(THREE, '“' + marker.label + '”', '#ffd54a', '#1f2a2e');
+        label.position.copy(pos);
+        markerGroup.add(label);
+        const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffd54a, transparent: true, opacity: 0.7 });
+        for (const name of hits || []) {
+          if (!byName[name]) continue;
+          const geometry = new THREE.BufferGeometry().setFromPoints([pos, byName[name].position]);
+          markerGroup.add(new THREE.Line(geometry, lineMaterial));
+        }
+        targetGoal.copy(pos);
+      }
+    },
+  };
 }
 
-function clearSearch() {
-  document.querySelectorAll('.pt.hit').forEach((el) => el.classList.remove('hit'));
-  const old = document.getElementById('marker'); if (old) old.remove();
+function textSprite(THREE, text, background, color) {
+  const c = document.createElement('canvas');
+  const ctx = c.getContext('2d');
+  ctx.font = 'bold 44px Georgia, serif';
+  const w = Math.ceil(ctx.measureText(text).width) + 48;
+  c.width = w; c.height = 72;
+  ctx.font = 'bold 44px Georgia, serif';
+  ctx.fillStyle = background; ctx.beginPath(); ctx.roundRect(0, 0, w, 72, 36); ctx.fill();
+  ctx.fillStyle = color; ctx.textBaseline = 'middle'; ctx.fillText(text, 24, 38);
+  const texture = new THREE.CanvasTexture(c);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true }));
+  sprite.renderOrder = 999;
+  const height = 0.11;
+  sprite.scale.set(height * w / 72, height, 1);
+  return sprite;
 }
 
-document.getElementById('mapsearch').addEventListener('submit', async (e) => {
+// ---------------------------------------------------------------- styring
+async function refresh() {
+  const view = views[mode];
+  if (!view) return;
+  if (!query) {
+    view.highlight({ hits: null, tag: activeTag, marker: null });
+    statusEl.textContent = baseStatus(info[mode]);
+    return;
+  }
+  statusEl.textContent = 'Søger …';
+  try {
+    const data = await getJSON('/api/map/search?' + new URLSearchParams({ q: query, k: 10, mode }));
+    const hits = new Set(data.hits.map((h) => h.filename));
+    view.highlight({ hits, tag: null, marker: { pos: data.position, label: query } });
+    const best = data.hits[0] ? data.hits[0].score.toFixed(3) : '-';
+    const where = data.exact
+      ? 'Teksten er placeret præcist med PCA – læg mærke til afstanden til billederne (the modality gap).'
+      : 'Teksten er placeret ved sine bedste hits, fordi t-SNE ikke kan placere nye punkter.';
+    statusEl.textContent = `Top ${data.hits.length} for “${query}” er fremhævet (bedste score ${best}). ${where}`;
+  } catch (err) {
+    statusEl.textContent = 'Søgning fejlede: ' + err.message;
+  }
+}
+
+async function setMode(next) {
+  document.querySelectorAll('.modes button').forEach((b) => b.classList.toggle('active', b.dataset.mode === next));
+  if (views[mode]) views[mode].hide();
+  mode = next;
+  if (!views[mode]) {
+    statusEl.textContent = next.endsWith('tsne') ? 'Beregner t-SNE over alle vektorer …' : 'Beregner PCA …';
+    try {
+      const data = await getJSON('/api/map?mode=' + mode);
+      info[mode] = data;
+      buildLegend(data.points);
+      const el = mode.startsWith('3d') ? stage3d.cloneNode(false) : stage2d;
+      if (mode.startsWith('3d')) { el.id = 'stage-' + mode; stage3d.after(el); }
+      views[mode] = mode.startsWith('3d') ? await create3D(el, data) : create2D(el, data);
+    } catch (err) {
+      statusEl.textContent = 'Kunne ikke lave kortet: ' + err.message;
+      return;
+    }
+    if (next !== mode) return;
+  }
+  views[mode].show();
+  refresh();
+}
+
+document.querySelectorAll('.modes button').forEach((b) => { b.onclick = () => setMode(b.dataset.mode); });
+document.getElementById('mapsearch').addEventListener('submit', (e) => {
   e.preventDefault();
   const q = document.getElementById('q').value.trim();
-  if (!q) return;
-  status.textContent = 'Søger …';
-  const res = await fetch('/api/map/search?' + new URLSearchParams({ q, k: 10 }));
-  const data = await res.json();
-  clearSearch(); activeTag = null;
-  const hitNames = new Set(data.hits.map((h) => h.filename));
-  setDim((name) => hitNames.has(name));
-  for (const h of data.hits) if (nodes[h.filename]) nodes[h.filename].classList.add('hit');
-  const [left, top] = place(data.position[0], data.position[1]);
-  const m = document.createElement('div');
-  m.id = 'marker'; m.textContent = '“' + q + '”';
-  m.style.left = (left + THUMB / 2) + 'px'; m.style.top = (top + THUMB / 2) + 'px';
-  world.appendChild(m);
-  status.textContent = `Top ${data.hits.length} for “${q}” er fremhævet. Bedste score ${data.hits[0] ? data.hits[0].score.toFixed(3) : '-'}.`;
+  query = q || null; activeTag = null; refresh();
 });
-
-document.getElementById('reset').onclick = () => { clearSearch(); activeTag = null; setDim(null); scale = 1; tx = 0; ty = 0; apply(); };
-load();
+document.getElementById('reset').onclick = () => {
+  query = null; activeTag = null; document.getElementById('q').value = '';
+  if (views[mode]) views[mode].reset();
+  refresh();
+};
+setMode('2d-tsne');
 """
 
 MAP_STYLE = """
+<script type="importmap">
+{ "imports": { "three": "/static/three/three.module.min.js", "three/addons/": "/static/three/addons/" } }
+</script>
 <style>
-#stage { position: relative; height: 72vh; min-height: 420px; overflow: hidden; border-radius: 14px;
+.stage { position: relative; height: 72vh; min-height: 420px; overflow: hidden; border-radius: 14px;
   background: #0d2b33; cursor: grab; touch-action: none; }
-#stage:active { cursor: grabbing; }
-#world { position: absolute; inset: 0; transform-origin: 0 0; }
+.stage[hidden] { display: none; }
+.stage canvas { display: block; width: 100%; height: 100%; }
+.world { position: absolute; inset: 0; transform-origin: 0 0; }
 .pt { position: absolute; width: 44px; height: 44px; border: 2px solid #888; border-radius: 6px;
   overflow: hidden; transition: opacity .2s, transform .2s; background: #123; }
 .pt img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
 .pt:hover { transform: scale(2.6); z-index: 10; }
 .pt.dim { opacity: .12; }
 .pt.hit { opacity: 1; z-index: 5; outline: 3px solid #ffd54a; transform: scale(1.6); }
-#marker { position: absolute; transform: translate(-50%, -50%); z-index: 20; background: #ffd54a;
+.marker { position: absolute; transform: translate(-50%, -50%); z-index: 20; background: #ffd54a;
   color: #1f2a2e; padding: 4px 10px; border-radius: 999px; font-weight: 700; white-space: nowrap;
   box-shadow: 0 0 0 6px rgba(255,213,74,.3); pointer-events: none; }
+.tooltip { position: absolute; z-index: 30; background: white; border-radius: 10px; padding: 6px;
+  font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,.3); pointer-events: none; max-width: 170px; }
+.tooltip img { width: 158px; height: 158px; object-fit: cover; display: block; border-radius: 6px; margin-bottom: 4px; }
 .legend { padding: 4px 12px; font-size: 14px; border-radius: 999px; }
 #legend { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+.modes { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin-bottom: 12px; }
+.modes button { border-radius: 0; background: white; color: var(--ink); padding: 8px 16px; }
+.modes button.active { background: var(--accent); color: white; }
+#autorow { margin: 0 0 8px; }
 </style>
 """
 
@@ -810,21 +1093,29 @@ def map_page() -> str:
     body = f"""
       <h1>Kort over vektorrummet</h1>
       <p>Hvert billede er en vektor med hundredvis af tal ({esc(get_image_embed_model())}).
-      t-SNE lægger dem ned i 2D, så billeder med lignende vektorer lander tæt på hinanden.
-      Klynger betyder noget; akserne og afstande mellem klynger gør ikke.</p>
+      Kortet lægger dem ned i 2 eller 3 dimensioner, så billeder med lignende vektorer lander
+      tæt på hinanden.</p>
+      <p class="hint"><strong>t-SNE</strong> bevarer naboskaber: klynger betyder noget, akser og
+      afstande mellem klynger gør ikke. <strong>PCA</strong> er en lineær projektion: akserne er
+      retningerne med mest variation, og afstande betyder noget, men klyngerne smelter mere sammen.</p>
       <div class="panel">
+        <div class="modes">
+          <button type="button" data-mode="2d-tsne">2D t-SNE</button>
+          <button type="button" data-mode="3d-tsne">3D t-SNE</button>
+          <button type="button" data-mode="3d-pca">3D PCA</button>
+        </div>
         <form id="mapsearch">
           <input type="text" id="q" placeholder="Søg med tekst, fx 'a shipwreck' eller 'sunset'" />
           <button type="submit">Vis på kortet</button>
           <button type="button" id="reset">Nulstil</button>
         </form>
         <div id="legend"></div>
+        <label id="autorow" class="hint" hidden><input type="checkbox" id="autorotate" checked /> Rotér automatisk</label>
         <p class="hint" id="status"></p>
-        <div id="stage"><div id="world"></div></div>
-        <p class="hint">Søgeteksten placeres som et vægtet gennemsnit af dens bedste hits,
-        fordi t-SNE ikke kan placere nye punkter præcist.</p>
+        <div class="stage" id="stage2d"></div>
+        <div class="stage" id="stage3d" hidden></div>
       </div>
-      <script>{script}</script>
+      <script type="module">{script}</script>
     """
     return layout("Kort", body, active="/map", extra_head=MAP_STYLE)
 

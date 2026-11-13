@@ -17,7 +17,7 @@ Bemærk:
 | Side | Hvad den viser | Pointe til holdet |
 |---|---|---|
 | **Søg** (`/`) | Søg med et uploadet billede eller med tekst, eventuelt filtreret på et tag | Tekst og billeder ligger i samme vektorrum; payload-filtre kombineres med vektorsøgning |
-| **Kort** (`/map`) | Alle billeder som thumbnails på et 2D-kort (t-SNE). Søgetekst lyser de bedste hits op | Et embedding er en position; lignende billeder samler sig i klynger |
+| **Kort** (`/map`) | Alle billeder som thumbnails i 2D eller 3D (t-SNE eller PCA). 3D kan roteres og zoomes. Søgetekst lyser de bedste hits op | Et embedding er en position; lignende billeder samler sig i klynger |
 | **Bland billede + tekst** (`/mix`) | `billede + vægt × tekst`, fx et vrag + "with a scuba diver" | Regning med embeddings og "the modality gap" |
 | **Hvad ser modellen?** (`/model-view`) | Det 224×224 udsnit og de 7×7 felter, som CLIP faktisk ser | Kanterne skæres væk; opløsningen er lav |
 | **Dubletter** (`/duplicates`) | Billedpar med cosine-lighed over en tærskel | Alle par sammenlignes med ét matrixprodukt; serieoptagelser findes |
@@ -29,6 +29,22 @@ CLIP lægger tekst og billeder i samme vektorrum, så tekstvektoren søges direk
 mod de gemte billedvektorer uden ny ingest. Tekst-til-billede scores ligger typisk
 omkring 0,2–0,35, mens billede-til-billede ofte er over 0,8. Det er rækkefølgen,
 der tæller. Engelsk virker bedst, men enkle danske sætninger virker ofte også.
+
+### Kort i 2D og 3D
+
+Knapperne over kortet skifter mellem **2D t-SNE**, **3D t-SNE** og **3D PCA**. I 3D
+trækker man for at rotere, scroller for at zoome og højreklikker eller shift-trækker
+for at flytte. Kortet roterer langsomt af sig selv, indtil man rører det.
+
+- **t-SNE** bevarer naboskaber. Klynger betyder noget, men akser og afstande mellem
+  klynger gør ikke. En søgetekst placeres ved sine bedste hits, fordi t-SNE ikke kan
+  placere nye punkter.
+- **PCA** er en lineær projektion på de tre retninger med mest variation. Statuslinjen
+  viser, hvor stor en del af variationen akserne fanger (for standardmodellen ca. 31%).
+  En søgetekst placeres præcist, og gule streger viser afstanden til hits. Den
+  afstand er "the modality gap": tekst og billeder ligger forskudt i CLIP-rummet.
+
+Three.js ligger i `static/three/` (MIT-licens), så 3D-kortet virker uden internet.
 
 ### Zero-shot tags
 
@@ -68,7 +84,8 @@ photos/
   image_embeddings.py  CLIP: billede/tekst -> vektor, og modellens udsnit
   photo_store.py       fælles Qdrant-opslag
   tagging.py           labels og zero-shot klassifikation
-  analysis.py          t-SNE-kort, dubletter og blanding af vektorer
+  analysis.py          t-SNE/PCA-kort, dubletter og blanding af vektorer
+  static/three/        Three.js til 3D-kortet (lokalt, virker offline)
   README.md
   data/                billederne (ignoreres af git)
 ```
@@ -127,6 +144,7 @@ til modellen, så ingest skal køres for den nye model.
 
 1. **Søg** med et billede og med tekst. Spørg: hvorfor er tekstscores så lave?
 2. **Kort**: find klyngerne, og søg "a shipwreck" og "sunset" for at se dem lyse op.
+   Skift til 3D PCA, og vis afstanden mellem søgeteksten og billederne.
 3. **Tags og filtre**: filtrér en tekstsøgning på `dykker`. Ret en prompt i
    `tagging.py`, kør `tag_photos.py`, og se fordelingen ændre sig.
 4. **Hvad ser modellen?** på et bredt billede: hvad sker der med motiver ude i siden?

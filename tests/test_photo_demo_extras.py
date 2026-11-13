@@ -18,7 +18,7 @@ PHOTO_DIR = ROOT / "demoer/modul 3/photos"
 if str(PHOTO_DIR) not in sys.path:
     sys.path.insert(0, str(PHOTO_DIR))
 
-from analysis import find_duplicates, mix_vectors, project_2d, weighted_position  # noqa: E402
+from analysis import find_duplicates, mix_vectors, project, project_2d, weighted_position  # noqa: E402
 from image_embeddings import model_input_preview, patch_size  # noqa: E402
 from photo_store import COLLECTION_NAME, collection_for_model  # noqa: E402
 from tagging import classify, softmax  # noqa: E402
@@ -99,6 +99,25 @@ class AnalysisTests(unittest.TestCase):
         x, y = weighted_position([(0.0, 0.0), (1.0, 1.0)], [3.0, 1.0])
         self.assertAlmostEqual(x, 0.25)
         self.assertAlmostEqual(y, 0.25)
+
+    def test_3d_tsne_is_centered_in_unit_cube(self):
+        rng = random.Random(1)
+        vectors = [unit(*[rng.gauss(0, 1) for _ in range(8)]) for _ in range(25)]
+        projection = project(vectors, dims=3, method="tsne")
+        self.assertEqual({len(p) for p in projection.coords}, {3})
+        self.assertTrue(all(-1.0 - 1e-9 <= v <= 1.0 + 1e-9 for p in projection.coords for v in p))
+        self.assertIsNone(projection.transform(vectors[0]))
+
+    def test_pca_reports_variance_and_places_new_points_exactly(self):
+        rng = random.Random(2)
+        vectors = [unit(*[rng.gauss(0, 1) for _ in range(8)]) for _ in range(30)]
+        projection = project(vectors, dims=3, method="pca")
+        self.assertEqual(len(projection.explained_variance), 3)
+        self.assertTrue(0 < sum(projection.explained_variance) <= 1)
+        self.assertGreaterEqual(projection.explained_variance[0], projection.explained_variance[1])
+        # Et kendt punkt placeres samme sted, som det fik i projektionen.
+        for got, expected in zip(projection.transform(vectors[4]), projection.coords[4]):
+            self.assertAlmostEqual(got, expected)
 
     def test_projection_returns_one_point_per_vector_in_unit_square(self):
         rng = random.Random(0)
@@ -227,6 +246,30 @@ class PhotoAppRouteTests(unittest.TestCase):
         response = self.client.post("/search", data={"upload_id": "unknown", "tag": "fisk"})
         self.assertIn("Vælg et billede at uploade", response.text)
         self.assertEqual(self.fake.queries, [])
+
+    def test_3d_pca_map_has_three_coordinates_and_exact_query_position(self):
+        self.fake.points["d.jpg"] = (unit(0, 0, 1), "koralrev")
+        self.fake.points["e.jpg"] = (unit(0.5, 0.5, 0.7), "dykker")
+        self.globals["_MAP_CACHE"].clear()
+        data = self.client.get("/api/map", params={"mode": "3d-pca"}).json()
+        self.assertEqual(data["dims"], 3)
+        self.assertEqual(len(data["explained"]), 3)
+        self.assertEqual({len(p["pos"]) for p in data["points"]}, {3})
+
+        found = self.client.get("/api/map/search", params={"q": "fish", "mode": "3d-pca", "k": 2}).json()
+        self.assertTrue(found["exact"])
+        self.assertEqual(len(found["position"]), 3)
+        self.assertEqual(found["hits"][0]["filename"], "c.jpg")
+
+    def test_unknown_map_mode_is_rejected(self):
+        self.assertEqual(self.client.get("/api/map", params={"mode": "4d"}).status_code, 400)
+
+    def test_map_page_uses_local_three_js(self):
+        page = self.client.get("/map").text
+        self.assertIn('"three": "/static/three/three.module.min.js"', page)
+        self.assertNotIn("cdn.", page)
+        self.assertEqual(self.client.get("/static/three/three.module.min.js").status_code, 200)
+        self.assertEqual(self.client.get("/static/three/addons/controls/OrbitControls.js").status_code, 200)
 
     def test_compare_explains_missing_collection(self):
         response = self.client.get("/compare")
