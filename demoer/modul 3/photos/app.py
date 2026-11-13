@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import html
 import io
 import math
 import os
 import sys
+from collections import OrderedDict
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import quote, urlencode
@@ -131,12 +134,13 @@ def result_cards(results: list[dict], *, links: bool = True) -> str:
     return "<div class='grid'>" + "".join(cards) + "</div>"
 
 
-def tag_options(selected: str = "") -> str:
+def tag_options(selected: str = "", *, autosubmit: bool = False) -> str:
     options = ["<option value=''>Alle tags</option>"]
     for tag in LABELS:
         chosen = " selected" if tag == selected else ""
         options.append(f"<option value='{esc(tag)}'{chosen}>{esc(tag)}</option>")
-    return "<select name='tag'>" + "".join(options) + "</select>"
+    auto = " data-autosubmit" if autosubmit else ""
+    return f"<select name='tag'{auto}>" + "".join(options) + "</select>"
 
 
 def model_view_html(image: Image.Image, *, title: str, model_name: str | None = None) -> str:
@@ -190,6 +194,8 @@ button { border: 0; background: linear-gradient(135deg, var(--accent), #1d7874);
 .hint { color: var(--muted); font-size: 14px; }
 .error { color: #b42318; font-weight: 700; }
 .preview img { max-width: 280px; border-radius: 12px; border: 1px solid var(--line); }
+img.mini { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+form.current { outline: 2px solid rgba(17,100,102,.35); outline-offset: 6px; border-radius: 12px; }
 .grid { margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
 .card { background: white; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
 .card img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; }
@@ -271,28 +277,72 @@ def tag_counts() -> dict[str, int]:
 # Søgning
 # --------------------------------------------------------------------------- #
 
+@dataclass
+class UploadedImage:
+    raw: bytes
+    filename: str
+    vector: list[float]
+
+
+# Uploadede billeder huskes i hukommelsen, så et skift af tag kan søge igen uden at
+# brugeren skal uploade (en browser kan ikke genudfylde et filfelt). Kun de seneste gemmes.
+_UPLOADS: OrderedDict[str, UploadedImage] = OrderedDict()
+MAX_UPLOADS = 32
+
+
+def remember_upload(raw: bytes, filename: str, vector: list[float]) -> str:
+    upload_id = hashlib.sha256(get_image_embed_model().encode() + raw).hexdigest()[:20]
+    _UPLOADS[upload_id] = UploadedImage(raw=raw, filename=filename, vector=vector)
+    _UPLOADS.move_to_end(upload_id)
+    while len(_UPLOADS) > MAX_UPLOADS:
+        _UPLOADS.popitem(last=False)
+    return upload_id
+
+
+def recall_upload(upload_id: str) -> UploadedImage | None:
+    upload = _UPLOADS.get(upload_id)
+    if upload is not None:
+        _UPLOADS.move_to_end(upload_id)
+    return upload
+
+
+@dataclass
+class SearchState:
+    """Alt hvad søgesiden skal huske mellem to søgninger."""
+
+    query: str = ""
+    text_tag: str = ""
+    upload_id: str = ""
+    image_tag: str = ""
+
+
 def render_page(
     *,
-    uploaded_image_data_url: str | None = None,
-    upload_model_view: str = "",
-    query_text: str | None = None,
-    tag: str = "",
+    state: SearchState | None = None,
+    mode: str = "",
     results: list[dict] | None = None,
     error: str | None = None,
 ) -> str:
+    state = state or SearchState()
+    upload = recall_upload(state.upload_id) if state.upload_id else None
+    if upload is None:
+        state.upload_id = ""
+
     preview_html = ""
-    if uploaded_image_data_url:
+    if mode == "image" and upload is not None:
+        with Image.open(io.BytesIO(upload.raw)) as pil_image:
+            upload_view = model_view_html(pil_image, title="Det ser modellen")
         preview_html = (
             "<div class='row'>"
             "<div class='preview'><h2>Uploadet billede</h2>"
-            f"<img src='{uploaded_image_data_url}' alt='upload' /></div>"
-            f"{upload_model_view}"
+            f"<img src='/upload/{state.upload_id}' alt='upload' /></div>"
+            f"{upload_view}"
             "</div>"
         )
-    elif query_text:
+    elif mode == "text" and state.query:
         preview_html = (
             "<div class='preview'>"
-            f"<h2>Tekstsøgning: “{esc(query_text)}”</h2>"
+            f"<h2>Tekstsøgning: “{esc(state.query)}”</h2>"
             "<p class='hint'>Tekst-til-billede scores ligger typisk omkring 0,2–0,35; "
             "rækkefølgen er det vigtige.</p>"
             "</div>"
@@ -306,14 +356,22 @@ def render_page(
             for name, count in sorted(counts.items(), key=lambda item: -item[1])
         )
         counts_html = (
-            "<p class='hint'>Zero-shot tags fra CLIP (ingen træning). "
-            "Vælg et tag for at filtrere søgningen:</p>"
+            "<p class='hint'>Zero-shot tags fra CLIP (ingen træning). Vælg et tag i en af "
+            "søgningerne for at filtrere den; resultatet opdateres med det samme.</p>"
             f"<div class='tags'>{chips}</div>"
         )
 
+    active_tag = state.image_tag if mode == "image" else state.text_tag if mode == "text" else ""
     error_html = f"<p class='error'>{esc(error)}</p>" if error else ""
-    if tag and results is not None:
-        error_html += f"<p class='hint'>Filtreret på tag: {tag_badge(tag)}</p>"
+    if active_tag and results is not None:
+        error_html += f"<p class='hint'>Filtreret på tag: {tag_badge(active_tag)}</p>"
+
+    remembered_html = ""
+    if upload is not None:
+        remembered_html = (
+            f"<img class='mini' src='/upload/{state.upload_id}' alt='husket billede' />"
+            f"<span class='hint'>Husket: {esc(upload.filename)}</span>"
+        )
 
     body = f"""
       <h1>Photo Similarity Demo</h1>
@@ -322,23 +380,47 @@ def render_page(
       <p class="hint">Model: {esc(get_image_embed_model())}</p>
       <div class="panel">
         {counts_html}
-        <form action="/search" method="post" enctype="multipart/form-data">
-          <input type="file" name="image" accept=".jpg,.jpeg" required />
-          {tag_options(tag)}
+        <form action="/search" method="post" enctype="multipart/form-data" class="{'current' if mode == 'image' else ''}">
+          {remembered_html}
+          <input type="file" name="image" accept=".jpg,.jpeg" {'' if upload else 'required'} />
+          <input type="hidden" name="upload_id" value="{esc(state.upload_id)}" />
+          <input type="hidden" name="query" value="{esc(state.query)}" />
+          <input type="hidden" name="text_tag" value="{esc(state.text_tag)}" />
+          {tag_options(state.image_tag, autosubmit=True)}
           <button type="submit">Find lignende billeder</button>
         </form>
-        <form action="/search-text" method="post">
-          <input type="text" name="query" value="{esc(query_text or '')}"
+        <form action="/search-text" method="post" class="{'current' if mode == 'text' else ''}">
+          <input type="text" name="query" value="{esc(state.query)}"
                  placeholder="fx 'a shipwreck' eller 'solnedgang over havet'" required />
-          {tag_options(tag)}
+          <input type="hidden" name="upload_id" value="{esc(state.upload_id)}" />
+          <input type="hidden" name="image_tag" value="{esc(state.image_tag)}" />
+          {tag_options(state.text_tag, autosubmit=True)}
           <button type="submit">Søg med tekst</button>
         </form>
         {error_html}
         {preview_html}
         {result_cards(results) if results is not None else ""}
       </div>
+      <script>{AUTOSUBMIT_SCRIPT}</script>
     """
     return layout("Søg", body, active="/")
+
+
+# Skift af tag søger igen, når formularen har noget at søge med.
+AUTOSUBMIT_SCRIPT = """
+document.querySelectorAll('select[data-autosubmit]').forEach((select) => {
+  select.addEventListener('change', () => {
+    const form = select.form;
+    const file = form.querySelector('input[type=file]');
+    const uploadId = form.querySelector('input[name=upload_id]');
+    const query = form.querySelector('input[type=text][name=query]');
+    const ready = file
+      ? (file.files.length > 0 || (uploadId && uploadId.value))
+      : (query && query.value.trim());
+    if (ready) form.requestSubmit();
+  });
+});
+"""
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -346,52 +428,79 @@ def index() -> str:
     return render_page()
 
 
+@app.get("/upload/{upload_id}")
+def uploaded_image(upload_id: str) -> Response:
+    upload = recall_upload(upload_id)
+    if upload is None:
+        raise HTTPException(status_code=404, detail="Billedet er ikke længere husket")
+    return Response(content=upload.raw, media_type="image/jpeg")
+
+
 @app.post("/search", response_class=HTMLResponse)
-async def search(request: Request, image: UploadFile = File(...), tag: str = Form("")) -> str:
-    if Path(image.filename or "").suffix.lower() not in SUPPORTED_EXTENSIONS:
-        return render_page(error="Upload kun .jpg eller .jpeg filer.")
+async def search(
+    request: Request,
+    image: UploadFile | None = File(None),
+    upload_id: str = Form(""),
+    tag: str = Form(""),
+    query: str = Form(""),
+    text_tag: str = Form(""),
+) -> str:
+    state = SearchState(query=query.strip(), text_tag=text_tag, upload_id=upload_id, image_tag=tag)
 
-    raw = await image.read()
-    try:
-        with Image.open(io.BytesIO(raw)) as pil_image:
-            vector = image_to_vector(pil_image)
-            upload_view = model_view_html(pil_image, title="Det ser modellen")
-    except UnidentifiedImageError:
-        return render_page(error="Filen kunne ikke læses som et billede.")
+    if image is not None and image.filename:
+        # Nyt billede: embed det og husk det til senere tag-skift.
+        if Path(image.filename).suffix.lower() not in SUPPORTED_EXTENSIONS:
+            return render_page(state=state, error="Upload kun .jpg eller .jpeg filer.")
+        raw = await image.read()
+        try:
+            with Image.open(io.BytesIO(raw)) as pil_image:
+                vector = image_to_vector(pil_image)
+        except UnidentifiedImageError:
+            return render_page(state=state, error="Filen kunne ikke læses som et billede.")
+        state.upload_id = remember_upload(raw, Path(image.filename).name, vector)
+    else:
+        # Intet nyt billede: genbrug det huskede (fx når tagget skiftes).
+        upload = recall_upload(upload_id) if upload_id else None
+        if upload is None:
+            return render_page(state=state, error="Vælg et billede at uploade.")
+        vector = upload.vector
 
-    data_url = "data:image/jpeg;base64," + base64.b64encode(raw).decode("ascii")
     try:
         results = photo_store.search(get_client(), vector, collection=default_collection(), tag=tag or None)
     except Exception as exc:
         return render_page(
-            uploaded_image_data_url=data_url,
-            upload_model_view=upload_view,
-            tag=tag,
+            state=state,
+            mode="image",
             error=f"Søgning fejlede. Har du kørt ingest_photos.py først? Detalje: {exc}",
         )
 
-    return render_page(uploaded_image_data_url=data_url, upload_model_view=upload_view, tag=tag, results=results)
+    return render_page(state=state, mode="image", results=results)
 
 
 @app.post("/search-text", response_class=HTMLResponse)
-def search_text(query: str = Form(...), tag: str = Form("")) -> str:
-    query = query.strip()
-    if not query:
-        return render_page(error="Skriv en tekst at søge efter.")
+def search_text(
+    query: str = Form(...),
+    tag: str = Form(""),
+    upload_id: str = Form(""),
+    image_tag: str = Form(""),
+) -> str:
+    state = SearchState(query=query.strip(), text_tag=tag, upload_id=upload_id, image_tag=image_tag)
+    if not state.query:
+        return render_page(state=state, error="Skriv en tekst at søge efter.")
 
     # CLIP lægger tekst og billeder i samme vektorrum, så tekstvektoren kan
     # søges direkte mod de billedvektorer, som ingest_photos.py har gemt.
-    vector = text_to_vector(query)
+    vector = text_to_vector(state.query)
     try:
         results = photo_store.search(get_client(), vector, collection=default_collection(), tag=tag or None)
     except Exception as exc:
         return render_page(
-            query_text=query,
-            tag=tag,
+            state=state,
+            mode="text",
             error=f"Søgning fejlede. Har du kørt ingest_photos.py først? Detalje: {exc}",
         )
 
-    return render_page(query_text=query, tag=tag, results=results)
+    return render_page(state=state, mode="text", results=results)
 
 
 # --------------------------------------------------------------------------- #

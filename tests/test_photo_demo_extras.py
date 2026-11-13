@@ -176,6 +176,58 @@ class PhotoAppRouteTests(unittest.TestCase):
         self.assertEqual(excluded, "a.jpg")
         self.assertIn("c.jpg", response.text)
 
+    def _upload(self, tag: str = "") -> str:
+        import io
+        import re
+
+        image_data = io.BytesIO()
+        Image.new("RGB", (8, 8), "blue").save(image_data, format="JPEG")
+        response = self.client.post(
+            "/search",
+            files={"image": ("sample.jpg", image_data.getvalue(), "image/jpeg")},
+            data={"tag": tag},
+        )
+        self.assertEqual(response.status_code, 200)
+        match = re.search(r'name="upload_id" value="([0-9a-f]+)"', response.text)
+        self.assertIsNotNone(match)
+        return match.group(1)
+
+    def test_changing_tag_reuses_uploaded_image_without_reembedding(self):
+        embeds = []
+        with patch.dict(self.globals, {"image_to_vector": lambda image: embeds.append(1) or unit(1, 0, 0)}):
+            upload_id = self._upload()
+            response = self.client.post("/search", data={"upload_id": upload_id, "tag": "fisk"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(embeds), 1)
+        condition = self.fake.queries[-1]["filter"].must[0]
+        self.assertEqual(condition.match.value, "fisk")
+        self.assertIn(f"/upload/{upload_id}", response.text)
+        self.assertEqual(self.client.get(f"/upload/{upload_id}").status_code, 200)
+
+    def test_text_search_remembers_upload_and_image_search_remembers_text(self):
+        with patch.dict(self.globals, {"image_to_vector": lambda image: unit(1, 0, 0)}):
+            upload_id = self._upload(tag="vrag")
+            text_page = self.client.post(
+                "/search-text",
+                data={"query": "a fish", "tag": "fisk", "upload_id": upload_id, "image_tag": "vrag"},
+            ).text
+            image_page = self.client.post(
+                "/search",
+                data={"upload_id": upload_id, "tag": "", "query": "a fish", "text_tag": "fisk"},
+            ).text
+
+        for page in (text_page, image_page):
+            self.assertIn(f'name="upload_id" value="{upload_id}"', page)
+            self.assertIn('name="query" value="a fish"', page)
+        self.assertIn("<option value='fisk' selected>", text_page)
+        self.assertIn("<option value='vrag' selected>", text_page)
+
+    def test_forgotten_upload_asks_for_a_new_image(self):
+        response = self.client.post("/search", data={"upload_id": "unknown", "tag": "fisk"})
+        self.assertIn("Vælg et billede at uploade", response.text)
+        self.assertEqual(self.fake.queries, [])
+
     def test_compare_explains_missing_collection(self):
         response = self.client.get("/compare")
         self.assertIn("findes ikke endnu", response.text)
