@@ -1,0 +1,50 @@
+[
+  {
+    "id": "rejsepolitik",
+    "file": "rejsepolitik.md",
+    "title": "Rejsepolitik (Markdown)",
+    "kind": "markdown",
+    "questions": [
+      {"question": "Hvad må et hotel i London højst koste pr. nat?", "expected": "250 EUR i London"},
+      {"question": "Hvornår må man flyve på business class?", "expected": "Business class må kun bruges på flyvninger over 8 timer"},
+      {"question": "Hvor hurtigt skal udgifter afregnes efter en rejse?", "expected": "senest 30 dage efter hjemkomst"},
+      {"question": "Hvad får man i godtgørelse for kørsel i egen bil?", "expected": "statens høje takst for de første 20.000 km"}
+    ]
+  },
+  {
+    "id": "lager",
+    "file": "lager.py",
+    "title": "Lagerstyring (Python-kode)",
+    "kind": "python",
+    "questions": [
+      {"question": "Hvor stor rabat får en storkunde?", "expected": "får 15 % rabat"},
+      {"question": "Hvordan beregnes genbestillingspunktet?", "expected": "dage = vare.leveringstid_dage + SIKKERHEDSLAGER_DAGE"},
+      {"question": "Hvad sker der, hvis man sælger flere varer end der er på lager?", "expected": "raise ValueError"},
+      {"question": "Hvor meget moms lægges på prisen?", "expected": "25 % moms"}
+    ]
+  },
+  {
+    "id": "faq",
+    "file": "kundeservice_faq.txt",
+    "title": "Kundeservice-FAQ",
+    "kind": "text",
+    "questions": [
+      {"question": "Hvor lang returret har jeg?", "expected": "30 dages fuld returret"},
+      {"question": "Hvornår har telefonen åbent?", "expected": "mandag til fredag kl. 9-16"},
+      {"question": "Hvor længe gælder et gavekort?", "expected": "gyldigt i tre år"},
+      {"question": "Hvad koster fragt til døren?", "expected": "79 kr. ved levering til døren"}
+    ]
+  },
+  {
+    "id": "oresund",
+    "file": "oresundsbroen.txt",
+    "title": "Øresundsbroen (lang prosa)",
+    "kind": "text",
+    "questions": [
+      {"question": "Hvor høje er broens pyloner?", "expected": "pylonerne er 204 meter høje"},
+      {"question": "Hvorfor blev der bygget en tunnel i stedet for en bro nær lufthavnen?", "expected": "forstyrre flytrafikken"},
+      {"question": "Hvor mange plantearter er der fundet på Peberholm?", "expected": "mere end 500 plantearter"},
+      {"question": "Hvornår forventes gælden på broen at være betalt tilbage?", "expected": "tilbagebetalt i 2050"}
+    ]
+  }
+]

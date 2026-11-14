@@ -2,6 +2,17 @@
 
 Denne mappe indeholder demoer og smaae eksempler til modul 2.
 
+## Chunking-laboratoriet (webapp)
+
+Interaktiv og animeret demo af chunking-strategier (fast antal tegn, overlap,
+sætninger, afsnit, rekursiv, Markdown og kildekode) og deres betydning for søgning
+i Qdrant. Se [vejledningen](chunking_lab/README.md).
+
+```bash
+cd "demoer/modul 2/chunking_lab"
+uvicorn app:app --port 8020
+```
+
 ## RAG-demo med OpenAI og lokal retrieval
 
 Filen `rag_openai_demo.py` viser forskellen mellem:

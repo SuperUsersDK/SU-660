@@ -31,6 +31,10 @@ kursuseksempler, heller ikke `.py`-filerne.
   "Sammenlign modeller" kræver desuden `ingest_photos.py --model openai/clip-vit-large-patch14`.
 - Foto-webappen er en server: start den med
   `cd "demoer/modul 3/photos" && uvicorn app:app --port 8010` i stedet for at køre `app.py`.
+- Chunking-laboratoriet er også en server: start det med
+  `cd "demoer/modul 2/chunking_lab" && uvicorn app:app --port 8020`.
+  Filerne i `demoer/modul 2/chunking_lab/texts/` (også `lager.py`) er eksempeltekster
+  til chunking, ikke eksempler, der skal køres.
 - Testene køres fra repository-roden med `python -m unittest discover -s tests`.
   Testfilerne virker ikke, hvis man starter dem direkte.
 - Agent-demoerne i modul 3 skriver til de versionerede filer

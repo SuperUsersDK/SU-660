@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chunking-laboratoriet</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <main>
+    <header class="top">
+      <div>
+        <h1>Chunking-laboratoriet</h1>
+        <p class="lead">Se hvordan forskellige chunking-strategier klipper den samme tekst, hvordan
+        chunks bliver til vektorer, og hvad det betyder for søgningen i vektor-databasen.</p>
+      </div>
+      <div class="model-badge" id="modelBadge">indlæser …</div>
+    </header>
+
+    <section class="controls panel">
+      <div class="control-row">
+        <span class="control-label">1. Tekst</span>
+        <div class="tabs" id="textTabs"></div>
+      </div>
+      <div class="control-row">
+        <span class="control-label">2. Strategi</span>
+        <div class="tabs" id="strategyTabs"></div>
+      </div>
+      <p class="strategy-desc" id="strategyDesc"></p>
+      <div class="control-row params" id="params"></div>
+      <div class="control-row actions">
+        <button class="primary" id="runBtn">✂️ Chunk og indeksér</button>
+        <button class="ghost" id="skipBtn" disabled>Spring animation over</button>
+        <label class="speed">Tempo
+          <select id="speed">
+            <option value="0.6">Langsomt</option>
+            <option value="1" selected>Normalt</option>
+            <option value="2.5">Hurtigt</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <section class="stage" id="stage">
+      <div class="panel doc-panel">
+        <div class="panel-head">
+          <h2>Dokument</h2>
+          <span class="hint" id="docInfo"></span>
+        </div>
+        <textarea class="doc-input" id="docInput" hidden
+          placeholder="Indsæt din egen tekst her: Markdown, kode eller almindelig tekst …"></textarea>
+        <div class="doc" id="doc"></div>
+        <div class="stats" id="stats"></div>
+      </div>
+
+      <div class="panel model-panel">
+        <div class="panel-head"><h2>Embedding-model</h2></div>
+        <div class="model-box" id="modelBox">
+          <div class="model-icon">🧠</div>
+          <div class="model-name" id="modelName"></div>
+          <div class="vector" id="vectorBars"></div>
+          <div class="vector-nums" id="vectorNums">tekst → tal</div>
+        </div>
+        <p class="hint model-hint">Hver chunk bliver til en vektor med <span id="dimsText">…</span> tal.
+        Tekster med lignende betydning får vektorer, der peger i samme retning.</p>
+      </div>
+
+      <div class="panel db-panel">
+        <div class="panel-head">
+          <h2>Vektor-database</h2>
+          <span class="hint" id="dbInfo">Qdrant</span>
+        </div>
+        <div class="db" id="db">
+          <svg id="dbSvg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Kort over chunk-vektorer">
+            <g id="dbLines"></g>
+            <g id="dbDots"></g>
+            <g id="dbQuery"></g>
+          </svg>
+          <div class="db-empty" id="dbEmpty">Tom. Tryk ✂️ Chunk og indeksér.</div>
+        </div>
+        <p class="hint">Kortet er vektorerne lagt ned i 2D (PCA). Tæt på hinanden = lignende betydning.</p>
+      </div>
+    </section>
+
+    <section class="panel search-panel">
+      <h2>3. Søg i databasen</h2>
+      <div class="chips" id="questionChips"></div>
+      <form class="search-row" id="searchForm">
+        <input type="text" id="question" placeholder="Stil et spørgsmål til teksten …" autocomplete="off" />
+        <button class="primary" type="submit" id="searchBtn" disabled>🔍 Søg</button>
+        <button class="ghost" type="button" id="compareBtn" disabled>⚖️ Sammenlign alle strategier</button>
+      </form>
+      <div id="searchStatus" class="hint"></div>
+      <div class="results" id="results"></div>
+      <div class="compare" id="compare"></div>
+    </section>
+  </main>
+
+  <div class="tooltip" id="tooltip" hidden></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
