@@ -52,10 +52,21 @@ svaret ligger i den øverste chunk (✅), længere nede (🟡), slet ikke i top 
 eller om det er klippet over, så ingen chunk indeholder hele svaret (✂️).
 
 **⚖️ Sammenlign alle strategier** søger det samme spørgsmål mod alle strategier og
-viser resultatet i en tabel. Med standardindstillingerne finder fast antal tegn den
-rigtige chunk øverst i 9 af 16 eksempelspørgsmål, overlap i 12 og sætninger, afsnit
-og rekursiv i 13. Markdown- og kode-strategierne rammer 4 af 4 og 3 af 4 på deres
-egne tekster.
+viser resultatet i en tabel. Med standardindstillingerne finder strategierne den
+rigtige chunk øverst i så mange af de 16 eksempelspørgsmål:
+
+| Strategi | Lokal e5 | OpenAI `text-embedding-3-small` |
+|---|---|---|
+| Fast antal tegn | 10 | 10 |
+| Tegn + overlap | 13 | 13 |
+| Sætninger | 14 | 13 |
+| Afsnit | 14 | 15 |
+| Rekursiv | 14 | 14 |
+| Markdown (kun rejsepolitikken) | 4 af 4 | 4 af 4 |
+| Kildekode (kun lagerstyring) | 4 af 4 | 4 af 4 |
+
+Embedding-modellen betyder mindre end chunkingen: begge modeller straffer fast
+antal tegn lige hårdt.
 
 Under **✏️ Egen tekst** kan man indsætte sin egen tekst (op til 20.000 tegn).
 
