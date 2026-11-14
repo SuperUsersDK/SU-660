@@ -6,6 +6,8 @@ Kør fra repository-roden med .venv aktiveret:
     python tools/kursus_setup.py scan     # kun scanning
     python tools/kursus_setup.py alt      # hent og indlæs alt, der mangler
 
+    python tools/kursus_setup.py ryd      # ryd op (spørger, før noget slettes)
+
 Menuen kan også få et nummer direkte, fx `python tools/kursus_setup.py 3`.
 """
 
@@ -22,6 +24,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
@@ -129,9 +132,11 @@ def photo_files() -> list[Path]:
     return [p for p in PHOTO_DATA_DIR.iterdir() if p.suffix.lower() in {".jpg", ".jpeg"}]
 
 
+SAMPLE_TAGS = ("bil", "fly", "skib", "fugl", "insekt", "blomst", "svamp", "kirke", "mad", "bjerg")
+
+
 def sample_photo_count() -> int:
-    tags = ("bil", "fly", "skib", "fugl", "insekt", "blomst", "svamp", "kirke", "mad", "bjerg")
-    return sum(1 for p in photo_files() if p.name.split("_", 1)[0] in tags)
+    return sum(1 for p in photo_files() if p.name.split("_", 1)[0] in SAMPLE_TAGS)
 
 
 def env_value_set(key: str) -> bool:
@@ -404,6 +409,156 @@ def do_everything() -> bool:
     return all(results)
 
 
+# --------------------------------------------------------------------------- #
+# Oprydning
+# --------------------------------------------------------------------------- #
+
+# Kun kursets egne collections i Qdrant må slettes.
+COURSE_COLLECTION_PREFIXES = ("modul3_photos_demo", "chunk_lab__")
+COURSE_COLLECTIONS = ("modul3_agent_tools_demo", "modul3_advanced_agent_demo", "modul3_demo")
+
+
+@dataclass
+class CleanupItem:
+    label: str
+    size: int          # bytes på disken (0 for Qdrant-collections)
+    detail: str
+    delete: Callable[[], None]
+
+
+def folder_size(path: Path) -> int:
+    return sum(f.stat().st_size for f in path.rglob("*") if f.is_file() and not f.is_symlink())
+
+
+def human_size(size: int) -> str:
+    for unit, factor in (("GB", 1024**3), ("MB", 1024**2), ("KB", 1024)):
+        if size >= factor:
+            return f"{size / factor:.1f} {unit}".replace(".", ",")
+    return f"{size} B"
+
+
+def hf_repo_dir(repo_id: str) -> Path | None:
+    try:
+        from huggingface_hub import constants
+    except ModuleNotFoundError:
+        return None
+    path = Path(constants.HF_HUB_CACHE) / ("models--" + repo_id.replace("/", "--"))
+    return path if path.exists() else None
+
+
+def qdrant_delete(name: str) -> None:
+    request = urllib.request.Request(
+        f"{qdrant_url()}/collections/{name}", method="DELETE", headers={"api-key": os.getenv("QDRANT_API_KEY", "")}
+    )
+    with urllib.request.urlopen(request, timeout=30):
+        pass
+
+
+def cleanup_items() -> list[CleanupItem]:
+    """Alt det, kurset har hentet eller oprettet, og som findes på maskinen lige nu."""
+    load_env()
+    items: list[CleanupItem] = []
+
+    for repo, purpose in ((CLIP_LARGE, "Sammenlign modeller"), (CLIP_BASE, "foto-demo"), (E5_MODEL, "chunking-lab")):
+        path = hf_repo_dir(repo)
+        if path:
+            items.append(CleanupItem(f"Model {repo}", folder_size(path), purpose, lambda p=path: shutil.rmtree(p)))
+
+    cache = tiktoken_cache_dir()
+    tokenizer_files = [cache / hashlib.sha1(url.encode()).hexdigest() for url in TIKTOKEN_FILES.values()]
+    tokenizer_files = [f for f in tokenizer_files if f.exists()]
+    if tokenizer_files:
+        items.append(CleanupItem(
+            "Tokenizere (tiktoken)", sum(f.stat().st_size for f in tokenizer_files), str(cache),
+            lambda fs=tokenizer_files: [f.unlink() for f in fs],
+        ))
+
+    samples = [p for p in photo_files() if p.name.split("_", 1)[0] in SAMPLE_TAGS]
+    if samples:
+        items.append(CleanupItem(
+            "Eksempelbilleder", sum(p.stat().st_size for p in samples), f"{len(samples)} billeder i photos/data",
+            lambda ps=samples: [p.unlink() for p in ps],
+        ))
+
+    collections = qdrant_get("/collections")
+    if collections and "result" in collections:
+        rag = os.getenv("QDRANT_COLLECTION", "rag_data")
+        for name in sorted(c["name"] for c in collections["result"]["collections"]):
+            if name.startswith(COURSE_COLLECTION_PREFIXES) or name in COURSE_COLLECTIONS or name == rag:
+                points = collection_points(name) or 0
+                items.append(CleanupItem(f"Qdrant: {name}", 0, f"{points} punkter", lambda n=name: qdrant_delete(n)))
+    return items
+
+
+def parse_selection(answer: str, count: int) -> list[int] | None:
+    """'alle', '1,3' eller '1 3' → indeks (0-baseret). None ved ugyldigt svar."""
+    answer = answer.strip().lower()
+    if answer in {"alle", "a", "all"}:
+        return list(range(count))
+    try:
+        numbers = sorted({int(part) for part in answer.replace(",", " ").split()})
+    except ValueError:
+        return None
+    if not numbers or any(n < 1 or n > count for n in numbers):
+        return None
+    return [n - 1 for n in numbers]
+
+
+def cleanup(ask: Callable[[str], str] = input) -> bool:
+    """Vis hvad der kan slettes, lad brugeren vælge, og bed om bekræftelse."""
+    header("Ryd op")
+    items = cleanup_items()
+    if not items:
+        print(colorize("Der er intet at rydde op.", GREEN))
+        return True
+
+    print("  Følgende er hentet eller oprettet til kurset:\n")
+    width = max(len(item.label) for item in items) + 2
+    for number, item in enumerate(items, 1):
+        size = human_size(item.size) if item.size else ""
+        print(f"   {colorize(str(number), BOLD, YELLOW):>3}  {item.label:<{width}}{size:>9}  {colorize(item.detail, DIM)}")
+    others = len(photo_files()) - sum(1 for p in photo_files() if p.name.split("_", 1)[0] in SAMPLE_TAGS)
+    if others:
+        print(colorize(f"\n  {others} egne billeder i photos/data røres ikke.", DIM))
+    print(colorize("  .venv, Docker-containerne og andre modeller i Hugging Face-cachen røres ikke.", DIM))
+
+    try:
+        answer = ask(colorize('\n  Hvad skal slettes? Numre (fx 1,3), "alle", eller Enter for at fortryde: ', BOLD))
+    except (EOFError, KeyboardInterrupt):
+        answer = ""
+    if not answer.strip():
+        print(colorize("Fortrudt. Intet er slettet.", YELLOW))
+        return True
+    chosen = parse_selection(answer, len(items))
+    if chosen is None:
+        print(colorize(f"Ugyldigt valg: {answer!r}. Intet er slettet.", RED))
+        return False
+
+    selected = [items[i] for i in chosen]
+    total = sum(item.size for item in selected)
+    print()
+    for item in selected:
+        print(f"   - {item.label}")
+    try:
+        confirm = ask(colorize(f'\n  Slet {len(selected)} ting ({human_size(total)} på disken)? Skriv "ja" for at fortsætte: ', BOLD, RED))
+    except (EOFError, KeyboardInterrupt):
+        confirm = ""
+    if confirm.strip().lower() != "ja":
+        print(colorize("Fortrudt. Intet er slettet.", YELLOW))
+        return True
+
+    ok = True
+    for item in selected:
+        try:
+            item.delete()
+            print(colorize(f"Slettet: {item.label}", GREEN))
+        except Exception as exc:
+            ok = False
+            print(colorize(f"Kunne ikke slette {item.label}: {exc}", RED))
+    print(colorize(f"\nFrigjort ca. {human_size(total)}. Menupunkt 9 henter det hele igen.", DIM))
+    return ok
+
+
 MENU = [
     ("1", "Scan: hvad mangler?", lambda: (print_scan(scan()), True)[1]),
     ("2", "Start Qdrant (Docker)", start_qdrant),
@@ -414,6 +569,7 @@ MENU = [
     ("7", "Stor CLIP-model til 'Sammenlign modeller' (1,7 GB, valgfri)", large_clip),
     ("8", "Kør tests", run_tests),
     ("9", "Gør alt, der mangler (punkt 2-6)", do_everything),
+    ("10", "Ryd op: slet modeller, billeder og kursets data i Qdrant (spørger først)", cleanup),
 ]
 
 
@@ -439,7 +595,7 @@ def main(argv: list[str]) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")  # æøå i Windows-konsollen
     os.chdir(ROOT_DIR)
-    aliases = {"scan": "1", "alt": "9"}
+    aliases = {"scan": "1", "alt": "9", "ryd": "10", "oprydning": "10"}
     if argv:
         return 0 if run_choice(aliases.get(argv[0], argv[0])) else 1
 

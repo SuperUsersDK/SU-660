@@ -60,6 +60,50 @@ class KursusSetupTests(unittest.TestCase):
                 setup.load_env()
                 self.assertEqual(os.environ.get("KURSUS_TEST_NOEGLE"), "abc")
 
+    def test_selection_accepts_numbers_ranges_and_all(self):
+        self.assertEqual(setup.parse_selection("1,3", 4), [0, 2])
+        self.assertEqual(setup.parse_selection(" 3 1 ", 4), [0, 2])
+        self.assertEqual(setup.parse_selection("alle", 3), [0, 1, 2])
+        self.assertIsNone(setup.parse_selection("5", 4))
+        self.assertIsNone(setup.parse_selection("x", 4))
+
+    def _cleanup_with(self, answers):
+        deleted = []
+        items = [
+            setup.CleanupItem("Model a", 10, "", lambda: deleted.append("a")),
+            setup.CleanupItem("Qdrant: b", 0, "", lambda: deleted.append("b")),
+        ]
+        replies = iter(answers)
+        with patch.object(setup, "cleanup_items", return_value=items), patch.object(setup, "photo_files", return_value=[]):
+            setup.cleanup(ask=lambda prompt: next(replies))
+        return deleted
+
+    def test_cleanup_deletes_only_after_explicit_yes(self):
+        self.assertEqual(self._cleanup_with(["2", "ja"]), ["b"])
+        self.assertEqual(self._cleanup_with(["alle", "ja"]), ["a", "b"])
+
+    def test_cleanup_deletes_nothing_without_confirmation(self):
+        self.assertEqual(self._cleanup_with([""]), [])            # Enter = fortryd
+        self.assertEqual(self._cleanup_with(["alle", "nej"]), [])
+        self.assertEqual(self._cleanup_with(["alle", ""]), [])
+        self.assertEqual(self._cleanup_with(["9"]), [])            # ugyldigt valg
+
+    def test_cleanup_never_lists_foreign_qdrant_collections(self):
+        def fake_get(path, timeout=3):
+            if path == "/collections":
+                names = ["modul3_photos_demo", "chunk_lab__x", "rag_data", "kundens_data", "modul3_demo"]
+                return {"result": {"collections": [{"name": n} for n in names]}}
+            return {"result": {"points_count": 1}}
+
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"TIKTOKEN_CACHE_DIR": tmp}), \
+                patch.object(setup, "qdrant_get", side_effect=fake_get), \
+                patch.object(setup, "hf_repo_dir", return_value=None), \
+                patch.object(setup, "photo_files", return_value=[]):
+            labels = [item.label for item in setup.cleanup_items()]
+        self.assertNotIn("Qdrant: kundens_data", labels)
+        self.assertIn("Qdrant: rag_data", labels)
+        self.assertIn("Qdrant: modul3_demo", labels)
+
     def test_menu_rejects_unknown_choice(self):
         self.assertFalse(setup.run_choice("42"))
 

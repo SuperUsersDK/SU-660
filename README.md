@@ -52,9 +52,12 @@ Menuen har disse punkter:
 | 7 | Stor CLIP-model til "Sammenlign modeller" (valgfri, 1,7 GB) |
 | 8 | Kør tests |
 | 9 | Gør alt, der mangler (punkt 2–6), og scan igen |
+| 10 | Ryd op: vis og slet modeller, tokenizere, eksempelbilleder og kursets collections i Qdrant. Man vælger selv, hvad der slettes, og skal bekræfte med "ja" |
 
 Uden menu: `python tools/kursus_setup.py scan` tjekker kun, og
-`python tools/kursus_setup.py alt` henter og indlæser alt, der mangler. Scanningen
+`python tools/kursus_setup.py alt` henter og indlæser alt, der mangler, og
+`python tools/kursus_setup.py ryd` rydder op efter kurset. Oprydningen rører kun
+kursets egne filer og collections; egne billeder, `.venv` og Docker bevares. Scanningen
 koster ingenting hos OpenAI; den slår kun modellen op.
 
 ## Forbered tokenizere før undervisningen
