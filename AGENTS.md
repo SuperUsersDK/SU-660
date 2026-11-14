@@ -14,6 +14,8 @@ kursuseksempler, heller ikke `.py`-filerne.
 
 - Brug Python 3.12 i `.venv`, og installér med
   `pip install -r requirements.txt -c constraints-classroom.txt`.
+- `python tools/kursus_setup.py scan` viser på få sekunder, hvad der mangler
+  (pakker, `.env`, Qdrant, modeller, billeder, data i Qdrant); `alt` henter det.
 - OpenAI-demoerne kræver `OPENAI_API_KEY` i `.env`. Qdrant-demoerne kræver
   `docker compose up -d qdrant` og `QDRANT_API_KEY=hemmelighed`.
   Se `.env.example`.

@@ -30,6 +30,33 @@ Installer med både requirements og constraints for at få det samme sæt versio
 `requirements.txt` beskriver dependencies; constraints-filen fastholder den testede
 versionskombination. Opdater først constraints efter at have afprøvet demoerne.
 
+## Klargør maskinen før kurset
+
+Efter installationen henter og tjekker `tools/kursus_setup.py` alt det, demoerne
+skal bruge. Kør det med internetadgang på hver maskine før kurset:
+
+```powershell
+python tools/kursus_setup.py
+```
+
+Menuen har disse punkter:
+
+| Punkt | Gør |
+|---|---|
+| 1 | Scan: viser `[OK]`, `[MANGLER]` eller `[VALGFRI]` for Python, pakker, `.env`, Qdrant, OpenAI-adgang, tokenizere, lokale modeller, billeder og data i Qdrant, og hvilket menupunkt der løser det |
+| 2 | Start Qdrant i Docker |
+| 3 | Hent tokenizere og de lokale modeller (e5 og CLIP, ca. 1,6 GB) |
+| 4 | Hent eksempelbilleder til foto-demoen (ca. 10 minutter) |
+| 5 | Indlæs billederne i Qdrant |
+| 6 | Indlæs RAG-dokumenterne til modul 2 i Qdrant (bruger OpenAI) |
+| 7 | Stor CLIP-model til "Sammenlign modeller" (valgfri, 1,7 GB) |
+| 8 | Kør tests |
+| 9 | Gør alt, der mangler (punkt 2–6), og scan igen |
+
+Uden menu: `python tools/kursus_setup.py scan` tjekker kun, og
+`python tools/kursus_setup.py alt` henter og indlæser alt, der mangler. Scanningen
+koster ingenting hos OpenAI; den slår kun modellen op.
+
 ## Forbered tokenizere før undervisningen
 
 Kør én gang med internetadgang efter installation:
@@ -53,7 +80,7 @@ derefter virker offline. Kør dem én gang med internet før undervisningen:
 
 - **Chunking-laboratoriet** (modul 2): `intfloat/multilingual-e5-small`, ca. 470 MB,
   hentes ved første indeksering i webappen.
-- **Foto-demoen** (modul 3): CLIP, ca. 600 MB (og 1,7 GB for den store model), hentes
+- **Foto-demoen** (modul 3): CLIP, ca. 1,1 GB (og 1,7 GB for den store model), hentes
   af `ingest_photos.py`. Billederne hentes separat med `fetch_sample_photos.py`, fordi
   billedmappen ikke er i git.
 
@@ -70,7 +97,7 @@ derefter virker offline. Kør dem én gang med internet før undervisningen:
 | `chunking/` | Små chunking-eksempler 01–08 med worksheet | [README](chunking/README.md) |
 | `øvelser/modul 2/` | Øvelser i dokumentfiltrering og chunking med løsninger | [README](øvelser/modul%202/README.md) |
 | `templates/` | `boilerplate.py`: minimalt OpenAI-kald som udgangspunkt for egne scripts | – |
-| `tools/` | Fælles terminal-output og tokenizer-warmup | – |
+| `tools/` | `kursus_setup.py` (klargøring før kurset), tokenizer-warmup og fælles terminal-output | – |
 | `tests/` | Offline regressionstests | – |
 
 ## Startpunkter
