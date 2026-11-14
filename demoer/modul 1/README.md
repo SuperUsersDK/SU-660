@@ -1,145 +1,121 @@
-# Avanceret Prompt Engineering Demo
+# Modul 1: Prompt engineering
 
-Dette modul indeholder et samlet demo til undervisning i avanceret prompt engineering.
+Modulet har fire demoer om prompts, hallucinationer og token-budgetter. Alle kører i
+terminalen og holder pauser (tryk Enter), så underviseren kan diskutere outputtet.
 
-Demoen er lavet som en lille dokument-assistent, der svarer paa spoergsmaal om:
+| Demo | Viser | Kalder OpenAI |
+|---|---|---|
+| `advanced_prompt_engineering_demo.py` | Fra naiv prompt til robust løsning: regler, dynamisk kontekst, memory, token-budget og JSON-output | Ja |
+| `hallucination.py` | Samme spørgsmål om en opdigtet artikel med en naiv og en forsigtig prompt | Ja |
+| `tokenbudget.py` | Hvor tokens bruges i en prompt, og hvad trimning sparer | Nej |
+| `tokenbudget2.py` | Komprimering af samtalehistorik med et rigtigt modelkald | Ja |
 
-- chunking
-- embeddings
-- RAG
-- overlap
+## Før timen
 
-Formaalet er at vise, hvordan en simpel LLM-applikation udvikler sig fra en naiv prompt til en mere robust loesning med bedre styring af kontekst, memory, tokens og outputformat.
-
-## Laeringsmaal
-
-Efter demoen skal deltagerne kunne forklare:
-
-- forskellen paa statiske og dynamiske prompts
-- hvorfor memory er nyttigt i samtaler
-- hvorfor memory og kontekst koster tokens
-- hvordan man budgetterer plads i prompten
-- hvorfor kontrolleret output er vigtigt i software
-
-## Filer
-
-- `advanced_prompt_engineering_demo.py`: det samlede demo-script
-- `data/doc_chunking.md`: lille tekst om chunking
-- `data/doc_embeddings.md`: lille tekst om embeddings
-- `data/doc_rag.md`: lille tekst om RAG
-- `data/doc_overlap.md`: lille tekst om overlap
-
-## Koer demoen
-
-Foelg [opsætningen i repository-roden](../../README.md), aktivér `.venv`, og sæt
-`OPENAI_API_KEY` i `.env`. Demoen bruger rigtige OpenAI API-kald og kræver
+Følg [opsætningen i repository-roden](../../README.md), aktivér `.venv`, og sæt
+`OPENAI_API_KEY` i `.env`. Demoerne bruger rigtige OpenAI API-kald og kræver
 internetadgang. `OPENAI_MODEL` vælger modellen; standarden er `gpt-6-luna`.
-Der bruges lokal ord-baseret retrieval over de fire tekster i `data/`.
 
 Kør fra repository-roden:
 
 ```bash
 python "demoer/modul 1/advanced_prompt_engineering_demo.py"
+python "demoer/modul 1/hallucination.py"
+python "demoer/modul 1/tokenbudget.py"
+python "demoer/modul 1/tokenbudget2.py"
 ```
 
-Scriptet holder pauser mellem delene, så underviseren kan diskutere outputtet.
+## Avanceret prompt engineering
 
-## Demoens struktur
+`advanced_prompt_engineering_demo.py` er en lille dokument-assistent, der svarer på
+spørgsmål om chunking, embeddings, RAG og overlap. Den viser, hvordan en simpel
+LLM-applikation udvikler sig fra en naiv prompt til en mere robust løsning med bedre
+styring af kontekst, memory, tokens og outputformat. Der bruges lokal, ordbaseret
+retrieval over de fire tekster i `data/`.
 
-### 1. Statisk prompt
+### Læringsmål
 
-Demoen starter med en helt simpel prompt:
+Efter demoen skal deltagerne kunne forklare:
 
-- ingen kontekst
-- ingen outputstyring
-- ingen memory
+- forskellen på statiske og dynamiske prompts
+- hvorfor memory er nyttigt i samtaler
+- hvorfor memory og kontekst koster tokens
+- hvordan man budgetterer plads i prompten
+- hvorfor kontrolleret output er vigtigt i software
 
-Pointen er at vise, at en model godt kan give et svar, men at man har meget lidt kontrol.
+### Demoens dele
 
-### 2. Statisk prompt med regler
+1. **Statisk prompt:** ingen kontekst, ingen outputstyring og ingen memory. Modellen
+   kan godt svare, men man har meget lidt kontrol.
+2. **Statisk prompt med regler:** rolle, regler, ønsket stil og begrænset svarlængde.
+   Selv en fast prompt kan give mere ensartede og nyttige svar.
+3. **Dynamisk prompt:** spørgsmål, kontekst fra en lille vidensbase og regler for
+   svaret indsættes ved kørsel. Det er nødvendigt i RAG, assistenter og tool-workflows.
+4. **Memory:** et opfølgende spørgsmål med og uden samtalehistorik. Med historik
+   forstår modellen referencer som "de", "det" og "den metode".
+5. **Token-budget:** hvor promptens tokens bruges, at memory og kontekst fylder mest,
+   og hvordan historik og kontekst kan trimmes. Prompt engineering handler også om
+   pladsstyring.
+6. **Kontrol over output:** fra frit tekstsvar til JSON, som er lettere at parse,
+   validere, sende videre i pipelines og bruge i API'er.
 
-Her tilfoejes:
+Tallene i token-delen er undervisningsestimater baseret på ordtælling. Instruktioner
+om svarformat er en del af inputtet; plads til modellens svar skal reserveres separat.
+Memory-resuméet er forberedt til eksempel-historikken.
 
-- rolle
-- regler
-- oensket stil
-- begraensning paa svarlaengde
+## Hallucination
 
-Pointen er, at selv en fast prompt kan give mere ensartede og nyttige svar.
+`hallucination.py` spørger om hovedresultaterne i en artikel, der ikke findes
+("Quantum Governance in Nordic Municipalities" fra 2019):
 
-### 3. Dynamisk prompt
+1. **Naiv prompt:** "svar konkret og giv gerne detaljer". Svarer modellen selvsikkert
+   på noget, der måske ikke findes?
+2. **Forsigtig prompt:** modellen bliver bedt om at sige tydeligt, når den er usikker,
+   og ikke opfinde detaljer.
 
-Her indsættes runtime-data i prompten:
+Diskutér, hvordan prompten påvirker risikoen for opdigtede svar, og hvorfor RAG med
+kilder er den egentlige løsning.
 
-- spoergsmaal
-- kontekst fra en lille vidensbase
-- regler for svaret
+## Token-budget
 
-Pointen er, at dynamiske prompts er noedvendige i rigtige applikationer som RAG, assistants og tool workflows.
-
-### 4. Memory-styring
-
-Her vises forskellen mellem:
-
-- et opfoelgende spoergsmaal uden memory
-- et opfoelgende spoergsmaal med samtalehistorik
-
-Pointen er, at modellen bedre kan forstaa referencer som `de`, `det` og `den metode`, naar relevant historik er med.
-
-### 5. Token-budgetering
-
-Her vises:
-
-- hvor promptens tokens bliver brugt
-- hvordan memory og kontekst fylder mest
-- hvordan man kan trimme historik og kontekst
-
-Pointen er, at prompt engineering ogsaa handler om pladsstyring, ikke kun formulering.
-
-Tallene er undervisningsestimater baseret på ordtælling. Instruktioner om svarformat
-er en del af inputtet; plads til modellens genererede svar skal reserveres separat.
-Memory-resuméet i denne demo er forberedt til eksempel-historikken. `tokenbudget2.py`
-viser i stedet komprimering af memory med et rigtigt modelkald.
-
-`tokenbudget.py` er en lokal illustration med et kunstigt kontekstvindue på 800
-enheder og en særskilt svarreserve. Det er en regneøvelse, ikke modellens faktiske
-kontekstgrænse eller en måling med dens tokenizer.
-
-### 6. Kontrol over output
-
-Til sidst vises, hvordan man gaar fra frit tekstsvar til et mere stabilt JSON-format.
-
-Pointen er, at kontrolleret output er lettere at:
-
-- parse i kode
-- validere
-- sende videre i pipelines
-- bruge i API'er
+- `tokenbudget.py` er en lokal regneøvelse med et kunstigt kontekstvindue på 800
+  enheder og en særskilt svarreserve. Den viser, hvor meget hver del af prompten
+  fylder, og hvad trimning sparer. Det er ikke modellens faktiske kontekstgrænse eller
+  en måling med dens tokenizer.
+- `tokenbudget2.py` lader modellen komprimere samtalehistorikken, sammenligner
+  token-estimaterne før og efter og kører derefter den nye, kortere prompt.
 
 ## Forslag til undervisningsflow
 
-En god maade at bruge demoen paa er:
+1. Kør `advanced_prompt_engineering_demo.py` fra start til slut, og tryk Enter ved pauserne.
+2. Gå derefter tilbage til hver del, og diskutér, hvad der blev forbedret.
+3. Spørg deltagerne, hvilket problem hver forbedring løser.
+4. Tal om tradeoffs, fx at mere memory giver bedre sammenhæng, men også højere tokenforbrug.
+5. Vis `hallucination.py` som en advarsel, og `tokenbudget.py`/`tokenbudget2.py` som
+   uddybning af token-delen.
 
-1. Kør scriptet fra start til slut, og brug Enter ved de indbyggede pauser.
-2. Gaa derefter tilbage til hver del og diskuter, hvad der blev forbedret.
-3. Sporg deltagerne, hvilket problem hver forbedring loeser.
-4. Tal om tradeoffs, fx at mere memory giver bedre sammenhaeng, men ogsaa hoejere tokenforbrug.
-
-## Gode spoergsmaal til rummet
+## Gode spørgsmål til holdet
 
 - Hvad mangler den naive prompt?
-- Hvad bliver bedre, naar vi tilfoejer faste regler?
+- Hvad bliver bedre, når vi tilføjer faste regler?
 - Hvorfor er dynamisk kontekst vigtig i RAG?
-- Hvornar er fuld historik en daarlig ide?
-- Hvad ville I skære vaek foerst, hvis prompten blev for lang?
+- Hvornår er fuld historik en dårlig idé?
+- Hvad ville I skære væk først, hvis prompten blev for lang?
 - Hvorfor er JSON-output ofte bedre end fritekst i software?
 
 ## Udvidelser
 
-Hvis du vil bygge videre paa demoen, kan du:
+- tilføj tiktoken eller tilsvarende til mere præcis tokenmåling
+- udvid vidensbasen med flere dokumenter
+- tilføj retrieval-score eller kildehenvisninger
+- lad deltagerne omskrive prompten og sammenligne resultater
 
-- erstatte det forberedte memory-resumé med modelbaseret komprimering
-- tilfoeje tiktoken eller tilsvarende til mere praecis tokenmaaling
-- udvide vidensbasen med flere dokumenter
-- tilfoeje retrieval-score eller citations
-- lade deltagerne omskrive prompten og sammenligne resultater
+## Filer
+
+| Fil | Indhold |
+|---|---|
+| `advanced_prompt_engineering_demo.py` | Den samlede prompt-engineering-demo |
+| `hallucination.py` | Naiv og forsigtig prompt om en opdigtet artikel |
+| `tokenbudget.py` | Lokal token-budget-regneøvelse |
+| `tokenbudget2.py` | Memory-komprimering med et modelkald |
+| `data/doc_chunking.md`, `doc_embeddings.md`, `doc_rag.md`, `doc_overlap.md` | Små tekster, som den avancerede demo henter kontekst fra |

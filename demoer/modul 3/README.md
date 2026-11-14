@@ -85,21 +85,44 @@ i de importerede nodes; credential-ID'er fra eksporten skal tilknyttes lokalt.
 Diskutér forskellen på denne faste RAG-pipeline og de to agents' valg af tools.
 Workflowet skal gennemprøves lokalt med credentials før timen.
 
-## 4. Billedlighed med CLIP
+## 4. Billedlighed med CLIP (foto-webapp)
 
-Følg [foto-demoets vejledning](photos/README.md) for billeder, ingest og webapp.
-Denne demo bruger lokal CLIP-inference og Qdrant. Har du ikke egne billeder, henter
-`photos/fetch_sample_photos.py` 20 billeder i hver af 10 tydelige kategorier fra
-Wikimedia Commons (ca. 10 minutter):
+Demoen embedder billeder lokalt med CLIP, gemmer dem i Qdrant og viser dem i en webapp.
+Den kræver ingen OpenAI-nøgle. Detaljer står i [foto-demoets vejledning](photos/README.md).
+
+**1. Hent billeder.** Billedmappen `photos/data/` er ikke i git, så billederne skal
+hentes på hver maskine. Scriptet henter 20 billeder i hver af 10 tydelige kategorier
+(bil, fly, skib, fugl, insekt, blomst, svamp, kirke, mad og bjerg) fra Wikimedia
+Commons. Det kræver internet og tager ca. 10 minutter; en afbrudt kørsel fortsætter,
+når scriptet køres igen. Egne `.jpg`-billeder kan i stedet lægges i `photos/data/`.
 
 ```powershell
 python "demoer/modul 3/photos/fetch_sample_photos.py"
+```
+
+**2. Indlæs billederne i Qdrant** (embedder og tagger dem):
+
+```powershell
 python "demoer/modul 3/photos/ingest_photos.py"
 ```
 
-Kør begge før timen, så billeder og modelvægte er downloadet.
-Webappen har også et kort over vektorrummet, zero-shot tags som filtre, regning
-med embeddings, en visning af modellens input, dubletter og sammenligning af modeller.
+Siden **Sammenlign modeller** kræver desuden den store CLIP-model (ca. 1,7 GB):
+
+```powershell
+python "demoer/modul 3/photos/ingest_photos.py" --model openai/clip-vit-large-patch14
+```
+
+**3. Start webappen** og åbn `http://127.0.0.1:8010`:
+
+```powershell
+cd "demoer/modul 3/photos"
+uvicorn app:app --port 8010
+```
+
+Webappen har siderne **Søg** (billede eller tekst, filtreret på tag), **Kort** (alle
+billeder i 2D eller 3D, t-SNE eller PCA), **Hvad ser modellen?**, **Dubletter** og
+**Sammenlign modeller**. Kør trin 1 og 2 før timen, så billeder og modelvægte er
+downloadet; derefter virker demoen uden internet.
 
 ## 5. Foto-agent: CLIP-søgning + vision-model
 
@@ -146,3 +169,17 @@ kan tilføje dubletter. `docker compose down` stopper services og bevarer volume
 - Forbindelsesfejl: kontrollér `docker compose ps` og internetadgang til de eksterne API'er.
 - Tokenizer-download: kør warmup med netadgang, og bevar `.cache/tiktoken/`.
 - Foto-demo uden resultater: kontrollér billedmappen, og kør `ingest_photos.py`.
+- `ModuleNotFoundError` (fx `dotenv`): `.venv` er ikke aktiveret, så systemets Python bruges.
+
+## Filer
+
+| Fil | Indhold |
+|---|---|
+| `agent_tools_langchain_demo.py` | Agent med flere datakilder (afsnit 1) |
+| `advanced_langchain_agent_demo.py` | Agent med evidens og beregning (afsnit 2) |
+| `Klassisk RAG Pipeline.json` | n8n-workflow (afsnit 3) |
+| `photos/` | Foto-webapp og scripts (afsnit 4) |
+| `photo_agent_demo.py` | Foto-agent (afsnit 5) |
+| `data/*.md` | Dokumenter, som agenterne og n8n-workflowet indekserer |
+| `data/*.db` | SQLite-eksempeldata til agenterne; nulstilles ved hver kørsel |
+| `frankenstein.txt` | Romanen fra Project Gutenberg. Bruges ikke af demoerne, men kan kopieres til `data/` for at vise n8n-ingest af en lang tekst |

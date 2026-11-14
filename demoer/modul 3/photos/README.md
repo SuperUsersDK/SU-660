@@ -41,7 +41,7 @@ for at flytte. Kortet roterer langsomt af sig selv, indtil man rører det.
   sættes til antal billeder / 20, mellem 5 og 30. Den skal være mindre end en typisk
   klynge: med 20 billeder pr. kategori giver 10 tydeligt skarpere klynger end 30.
 - **PCA** er en lineær projektion på de tre retninger med mest variation. Statuslinjen
-  viser, hvor stor en del af variationen akserne fanger (for standardmodellen ca. 31%).
+  viser, hvor stor en del af variationen akserne fanger (ca. 26% for eksempelbillederne).
   En søgetekst placeres præcist, og gule streger viser afstanden til hits. Den
   afstand er "the modality gap": tekst og billeder ligger forskudt i CLIP-rummet.
 
